@@ -33,7 +33,7 @@ build_windows.bat
 ```
 بعد الانتهاء ستجد الملف التنفيذي هنا:
 ```
-dist\MinaAlArabiSalonManager\MinaAlArabiSalonManager.exe
+dist\\MinaAlArabiSalonManager\\MinaAlArabiSalonManager.exe
 ```
 
 بديل (باستخدام spec مباشرة):
@@ -49,6 +49,34 @@ pyinstaller MinaAlArabiSalonManager.spec
 ملاحظات:
 - إذا ظهرت مشكلة في PySide6 على ويندوز، ثبّت Microsoft Visual C++ Redistributable (2015-2022).
 - يمكنك نقل مجلد dist بالكامل لأي جهاز وتشغيل البرنامج بدون تثبيت بايثون.
+
+## إنشاء مُثبت لويندوز (Installer)
+
+لإنشاء ملف مُثبت .exe يسهل على المستخدمين تثبيت البرنامج على ويندوز:
+
+1) أولاً أنشئ الملف التنفيذي عبر:
+```
+build_windows.bat
+```
+
+2) ثبّت Inno Setup (مجاني) من:
+```
+https://jrsoftware.org/isdl.php
+```
+وتأكد أن الأمر `iscc` يعمل داخل الـ PATH (عادةً يكون في:
+`C:\Program Files (x86)\Inno Setup 6\iscc.exe`).
+
+3) ابنِ المُثبت عبر ملف الباتش:
+```
+build_installer_windows.bat
+```
+
+بعد الانتهاء ستجد المُثبت هنا:
+```
+installer\\windows\\output\\MinaAlArabiSalonManagerSetup.exe
+```
+
+يمكنك توزيع هذا الملف على أي جهاز ويندوز، وسيقوم بإنشاء اختصار وتشغيل التطبيق مباشرةً.
 
 ## الواجهات
 
