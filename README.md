@@ -23,6 +23,33 @@ mina_al_arabi/data/mina.db
 mina_al_arabi/data/receipts/
 ```
 
+## إنشاء ملف تنفيذي (Windows EXE)
+
+الطريقة الأسهل (ملف باتش جاهز):
+1) افتح موجه الأوامر داخل مجلد المشروع.
+2) شغّل:
+```
+build_windows.bat
+```
+بعد الانتهاء ستجد الملف التنفيذي هنا:
+```
+dist\MinaAlArabiSalonManager\MinaAlArabiSalonManager.exe
+```
+
+بديل (باستخدام spec مباشرة):
+1) ثبّت PyInstaller:
+```
+pip install pyinstaller
+```
+2) نفّذ:
+```
+pyinstaller MinaAlArabiSalonManager.spec
+```
+
+ملاحظات:
+- إذا ظهرت مشكلة في PySide6 على ويندوز، ثبّت Microsoft Visual C++ Redistributable (2015-2022).
+- يمكنك نقل مجلد dist بالكامل لأي جهاز وتشغيل البرنامج بدون تثبيت بايثون.
+
 ## الواجهات
 
 - الكاشير (الخدمات):

@@ -1,7 +1,8 @@
 import sys
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTabWidget, QMessageBox, QMenuBar, QMenu, QAction
+    QApplication, QMainWindow, QTabWidget, QMessageBox, QMenuBar, QMenu
 )
+from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
 from .db import Database
 from .dashboards.cashier import CashierDashboard
