@@ -2,11 +2,11 @@
 ; Requires Inno Setup (https://jrsoftware.org/isinfo.php) installed and `iscc` available in PATH.
 
 [Setup]
-AppName=Mina Al Arabi Salon Manager
+AppName=مدير صالون مينا العربي
 AppVersion=1.0.0
 AppPublisher=Mina Al Arabi
 DefaultDirName={pf}\MinaAlArabiSalonManager
-DefaultGroupName=Mina Al Arabi Salon Manager
+DefaultGroupName=مدير صالون مينا العربي
 OutputDir=installer\windows\output
 OutputBaseFilename=MinaAlArabiSalonManagerSetup
 Compression=lzma
@@ -24,12 +24,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ; Include all files created by PyInstaller
 Source: "dist\MinaAlArabiSalonManager\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-[Tasks]
-Name: "desktopicon"; Description: "إنشاء اختصار على سطح المكتب"; GroupDescription: "خيارات إضافية:"; Flags: unchecked
-
 [Icons]
-Name: "{group}\Mina Al Arabi Salon Manager"; Filename: "{app}\MinaAlArabiSalonManager.exe"
-Name: "{commondesktop}\Mina Al Arabi Salon Manager"; Filename: "{app}\MinaAlArabiSalonManager.exe"; Tasks: desktopicon
+; Always create Start Menu and Desktop shortcuts with app name
+Name: "{group}\مدير صالون مينا العربي"; Filename: "{app}\MinaAlArabiSalonManager.exe"
+Name: "{commondesktop}\مدير صالون مينا العربي"; Filename: "{app}\MinaAlArabiSalonManager.exe"
 
 [Run]
 Filename: "{app}\MinaAlArabiSalonManager.exe"; Description: "تشغيل التطبيق"; Flags: nowait postinstall skipifsilent
