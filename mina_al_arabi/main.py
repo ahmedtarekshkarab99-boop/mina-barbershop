@@ -1,8 +1,8 @@
 import sys
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTabWidget, QMessageBox, QMenuBar, QMenu, QInputDialog
+    QApplication, QMainWindow, QTabWidget, QMessageBox, QMenuBar, QMenu, QInputDialog, QToolBar
 )
-from PySide6.QtGui import QAction, QFont
+from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtCore import Qt
 from mina_al_arabi.db import Database
 from mina_al_arabi.dashboards.cashier import CashierDashboard
@@ -43,6 +43,9 @@ class MainWindow(QMainWindow):
 
         # Menu
         self._build_menu()
+
+        # Sidebar (left) with actions to switch tabs
+        self._build_sidebar()
 
         # Dark premium theme stylesheet (black/gold/white)
         self._apply_theme()
@@ -86,7 +89,7 @@ class MainWindow(QMainWindow):
             QApplication.instance().setFont(QFont("Cairo", 12))
         except Exception:
             QApplication.instance().setFont(QFont("", 12))
-        # Stylesheet
+        # Stylesheet with premium dark theme, sidebar, and translucent header
         style = """
         QWidget { background-color: #181818; color: #FFFFFF; }
         QMainWindow { background-color: #121212; }
@@ -96,12 +99,15 @@ class MainWindow(QMainWindow):
         QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; padding: 8px 14px; font-weight: 600; }
         QPushButton:hover { background-color: #B8962D; }
         QLabel { color: #FFFFFF; }
-        QMenuBar { background-color: #121212; color: #FFFFFF; }
+        QMenuBar { background-color: rgba(212,175,55,0.2); color: #FFFFFF; }
         QMenu { background-color: #121212; color: #FFFFFF; border: 1px solid #D4AF37; }
         QLineEdit, QSpinBox, QComboBox { background-color: #121212; color: #FFFFFF; border: 1px solid #D4AF37; border-radius: 6px; padding: 6px; }
         QCheckBox { color: #FFFFFF; }
         QTableWidget { background-color: #181818; color: #FFFFFF; gridline-color: #D4AF37; }
         QHeaderView::section { background-color: #121212; color: #FFFFFF; border: 1px solid #D4AF37; }
+        QToolBar { background-color: #121212; border-right: 1px solid #D4AF37; spacing: 8px; }
+        QToolButton { color: #FFFFFF; background-color: #121212; border: none; padding: 10px; border-radius: 6px; }
+        QToolButton:hover { background-color: #181818; color: #D4AF37; }
         """
         QApplication.instance().setStyleSheet(style)
 
@@ -111,6 +117,33 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "تم", f"تم حفظ النسخة الاحتياطية:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "خطأ", f"حدث خطأ أثناء النسخ الاحتياطي:\n{e}")
+
+    def _build_sidebar(self):
+        toolbar = QToolBar("التنقل")
+        toolbar.setMovable(False)
+        self.addToolBar(Qt.LeftToolBarArea, toolbar)
+        # Actions to switch tabs
+        act_cashier = QAction("الكاشير", self)
+        act_inventory = QAction("المخزن", self)
+        act_sales = QAction("المبيعات", self)
+        act_expenses = QAction("المصاريف", self)
+        act_attendance = QAction("الحضور", self)
+        act_reports = QAction("التقارير", self)
+
+        # Connect actions
+        act_cashier.triggered.connect(lambda: self.tabs.setCurrentWidget(self.cashier_tab))
+        act_inventory.triggered.connect(lambda: self.tabs.setCurrentWidget(self.inventory_tab))
+        act_sales.triggered.connect(lambda: self.tabs.setCurrentWidget(self.sales_tab))
+        act_expenses.triggered.connect(lambda: self.tabs.setCurrentWidget(self.expenses_tab))
+        act_attendance.triggered.connect(lambda: self.tabs.setCurrentWidget(self.attendance_tab))
+        act_reports.triggered.connect(lambda: self.tabs.setCurrentWidget(self.reports_tab))
+
+        toolbar.addAction(act_cashier)
+        toolbar.addAction(act_inventory)
+        toolbar.addAction(act_sales)
+        toolbar.addAction(act_expenses)
+        toolbar.addAction(act_attendance)
+        toolbar.addAction(act_reports)
 
     def _delete_service(self):
         name, ok = QInputDialog.getText(self, "حذف خدمة", "اسم الخدمة:")
