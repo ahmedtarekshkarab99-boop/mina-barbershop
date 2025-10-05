@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QPushButton, QTableWidget,
     QTableWidgetItem
 )
-from ..db import Database
+from mina_al_arabi.db import Database
 
 
 class InventoryDashboard(QWidget):

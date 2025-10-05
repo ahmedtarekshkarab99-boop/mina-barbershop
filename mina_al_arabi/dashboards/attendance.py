@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from datetime import datetime
-from ..db import Database
+from mina_al_arabi.db import Database
 
 
 class AttendanceDashboard(QWidget):
