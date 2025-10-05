@@ -1,10 +1,26 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox, QTableWidget, QTableWidgetItem
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox, QTableWidget, QTableWidgetItem, QPushButton, QRadioButton
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 from datetime import datetime
 from mina_al_arabi.db import Database
+
+
+def format_amount(amount: float) -> str:
+    return str(int(round(amount)))
+
+
+def format_time_ar_str(dt_str: str) -> str:
+    try:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+        h = dt.strftime("%I")
+        m = dt.strftime("%M")
+        ampm = dt.strftime("%p")
+        suffix = "ص" if ampm == "AM" else "م"
+        return f"{dt.strftime('%Y-%m-%d')} {h}:{m} {suffix}"
+    except Exception:
+        return dt_str
 
 
 class ReportsDashboard(QWidget):
@@ -39,23 +55,30 @@ class ReportsDashboard(QWidget):
         self.month_input.setValue(datetime.now().month)
         controls.addWidget(self.month_input)
 
+        # Filter mode
+        self.daily_radio = QRadioButton("تقرير يومي")
+        self.monthly_radio = QRadioButton("تقرير شهري")
+        self.daily_radio.setChecked(True)
+        controls.addWidget(self.daily_radio)
+        controls.addWidget(self.monthly_radio)
+
+        generate_btn = QPushButton("إنشاء التقرير")
+        generate_btn.setFont(self.body_font)
+        generate_btn.clicked.connect(self.refresh)
+        controls.addWidget(generate_btn)
+
         layout.addLayout(controls)
 
         self.table = QTableWidget(0, 3)
         self.table.setFont(self.body_font)
-        self.table.setHorizontalHeaderLabels(["رقم الفاتورة", "الوقت", "الإجمالي"])
-        layout.addWidget(self.table, alignment=Qt.AlignCenter)
+        self.table.setHorizontalHeaderLabels(["الوصف", "الوقت", "القيمة (ج.م)"])
+        layout.addWidget(self.table)
 
-        self.summary_label = QLabel("إجمالي خدمات اليوم: 0 ج.م")
+        self.summary_label = QLabel("إجمالي الخدمات: 0 ج.م | إجمالي المبيعات: 0 ج.م | الخصومات: 0 ج.م | الرصيد: 0 ج.م")
         self.summary_label.setFont(self.body_font)
         layout.addWidget(self.summary_label)
 
-        self.employee_combo.currentIndexChanged.connect(self.refresh)
-        self.day_input.valueChanged.connect(self.refresh)
-        self.month_input.valueChanged.connect(self.refresh)
-
         self._load_employees()
-        self.refresh()
 
     def _load_employees(self):
         self.employee_combo.clear()
@@ -66,25 +89,56 @@ class ReportsDashboard(QWidget):
         if self.employee_combo.count() == 0:
             return
         employee_id = self.employee_combo.currentData()
-        # Compose date YYYY-MM-DD
         year = datetime.now().year
         month = int(self.month_input.value())
         day = int(self.day_input.value())
         date_str = f"{year}-{month:02d}-{day:02d}"
 
-        sales = self.db.list_sales_by_employee_on_date(employee_id, date_str)
+        # Choose scope
+        if self.monthly_radio.isChecked():
+            sales = self.db.list_sales_by_employee_in_month(employee_id, year, month)
+            loans = self.db.list_loans_by_employee_in_month(employee_id, year, month)
+        else:
+            sales = self.db.list_sales_by_employee_on_date(employee_id, date_str)
+            loans = self.db.list_loans_by_employee_on_date(employee_id, date_str)
+
         self.table.setRowCount(0)
 
         total_services = 0.0
+        total_products = 0.0
+        total_deductions = 0.0
+
+        # Sales entries
         for s in sales:
             i = self.table.rowCount()
             self.table.insertRow(i)
-            # Show invoice id, time, total
-            time_part = s["date"].split(" ")[1] if " " in s["date"] else s["date"]
-            self.table.setItem(i, 0, QTableWidgetItem(str(s["id"])))
-            self.table.setItem(i, 1, QTableWidgetItem(time_part))
-            self.table.setItem(i, 2, QTableWidgetItem(f"{s['total']:.2f} ج.م"))
-            if s["type"] == "service":
+            desc = "فاتورة خدمات" if s["type"] == "service" else "فاتورة مبيعات"
+            if s.get("buyer_type") == "employee":
+                # Treat products for employee as deduction
+                desc = "خصم (منتج للموظف)"
+                total_deductions += s["total"]
+            elif s["type"] == "service":
                 total_services += s["total"]
+            else:
+                total_products += s["total"]
+            self.table.setItem(i, 0, QTableWidgetItem(desc))
+            self.table.setItem(i, 1, QTableWidgetItem(format_time_ar_str(s["date"])))
+            self.table.setItem(i, 2, QTableWidgetItem(format_amount(s["total"])))
 
-        self.summary_label.setText(f"إجمالي خدمات اليوم: {total_services:.2f} ج.م")
+        # Loan deductions
+        for lid, date, amount, note in loans:
+            i = self.table.rowCount()
+            self.table.insertRow(i)
+            self.table.setItem(i, 0, QTableWidgetItem("خصم (سلفة)"))
+            self.table.setItem(i, 1, QTableWidgetItem(format_time_ar_str(date)))
+            self.table.setItem(i, 2, QTableWidgetItem(format_amount(amount)))
+            total_deductions += amount
+
+        self.table.resizeColumnsToContents()
+        balance = total_services + total_products - total_deductions
+        self.summary_label.setText(
+            f"إجمالي الخدمات: {format_amount(total_services)} ج.م | "
+            f"إجمالي المبيعات: {format_amount(total_products)} ج.م | "
+            f"الخصومات: {format_amount(total_deductions)} ج.م | "
+            f"الرصيد: {format_amount(balance)} ج.م"
+        )

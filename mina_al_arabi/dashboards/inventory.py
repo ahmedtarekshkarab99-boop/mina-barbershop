@@ -55,7 +55,8 @@ class InventoryDashboard(QWidget):
         self.table.setFont(self.body_font)
         self.table.setHorizontalHeaderLabels(["المعرف", "الاسم", "السعر", "الكمية"])
         self.table.setStyleSheet("QTableWidget { gridline-color: #D4AF37; }")
-        layout.addWidget(self.table, alignment=Qt.AlignCenter)
+        # Expand to fill available space
+        layout.addWidget(self.table)
 
         action_row = QHBoxLayout()
         refresh_btn = QPushButton("تحديث القائمة")
@@ -106,6 +107,7 @@ class InventoryDashboard(QWidget):
             self.table.insertRow(r)
             self.table.setItem(r, 0, QTableWidgetItem(str(pid)))
             self.table.setItem(r, 1, QTableWidgetItem(name))
-            self.table.setItem(r, 2, QTableWidgetItem(f"{price:.2f}"))
+            self.table.setItem(r, 2, QTableWidgetItem(str(int(round(price)))))
             self.table.setItem(r, 3, QTableWidgetItem(str(qty)))
         self.table.resizeColumnsToContents()
+        self.table.resizeRowsToContents()

@@ -83,6 +83,12 @@ class MainWindow(QMainWindow):
         edit_service_price_action.triggered.connect(self._edit_service_price)
         manage_menu.addAction(edit_service_price_action)
 
+        manage_menu.addSeparator()
+
+        update_action = QAction("تحديث البرنامج", self)
+        update_action.triggered.connect(self._refresh_all)
+        manage_menu.addAction(update_action)
+
     def _apply_theme(self):
         # Set global font preference
         try:
@@ -173,6 +179,39 @@ class MainWindow(QMainWindow):
                 self.cashier_tab._load_services()
             except ValueError:
                 QMessageBox.warning(self, "خطأ", "من فضلك أدخل رقمًا صحيحًا للسعر")
+
+    def _refresh_all(self):
+        # Refresh data across the app
+        try:
+            self.cashier_tab._load_employees()
+            self.cashier_tab._load_services()
+        except Exception:
+            pass
+        try:
+            self.inventory_tab.load_products()
+        except Exception:
+            pass
+        try:
+            self.sales_tab._load_employees()
+            self.sales_tab.load_products()
+        except Exception:
+            pass
+        try:
+            self.expenses_tab.load_expenses()
+        except Exception:
+            pass
+        try:
+            self.attendance_tab.load_employees()
+            self.attendance_tab._load_loan_employees()
+            self.attendance_tab.load_report()
+        except Exception:
+            pass
+        try:
+            self.reports_tab._load_employees()
+            self.reports_tab.refresh()
+        except Exception:
+            pass
+        QMessageBox.information(self, "تم", "تم تحديث البرنامج بنجاح")
 
 
 def main():

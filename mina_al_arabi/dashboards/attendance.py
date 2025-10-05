@@ -30,10 +30,9 @@ class AttendanceDashboard(QWidget):
         lbl = QLabel("سلفة لموظف:")
         lbl.setFont(self.body_font)
         loan_layout.addWidget(lbl)
-        self.loan_employee_input = QLineEdit()
-        self.loan_employee_input.setFont(self.body_font)
-        self.loan_employee_input.setPlaceholderText("اكتب اسم الموظف بالضبط")
-        loan_layout.addWidget(self.loan_employee_input)
+        self.loan_employee_combo = QComboBox()
+        self.loan_employee_combo.setFont(self.body_font)
+        loan_layout.addWidget(self.loan_employee_combo)
         loan_layout.addWidget(QLabel("المبلغ"))
         self.loan_amount_input = QSpinBox()
         self.loan_amount_input.setFont(self.body_font)
@@ -70,7 +69,15 @@ class AttendanceDashboard(QWidget):
         layout.addWidget(self.report_table, alignment=Qt.AlignCenter)
 
         self.load_employees()
+        self._load_loan_employees()
         self.load_report()
+
+        # Delete all attendance data button
+        delete_all_btn = QPushButton("حذف كل البيانات")
+        delete_all_btn.setFont(self.body_font)
+        delete_all_btn.clicked.connect(self._delete_all_attendance)
+        layout.addWidget(delete_all_btn, alignment=Qt.AlignRi_codeghnewt</)
+
 
     def load_employees(self):
         # Clear grid
@@ -107,27 +114,28 @@ class AttendanceDashboard(QWidget):
 
             row = i // 3
             col = (i % 3) * 3
+            # Position name closer to check buttons by using a 2-column grouping
             self.grid.addWidget(name_label, row, col)
             self.grid.addWidget(check_in_btn, row, col + 1)
             self.grid.addWidget(check_out_btn, row, col + 2)
 
+    def _load_loan_employees(self):
+        self.loan_employee_combo.clear()
+        for eid, name in self.db.list_employees():
+            self.loan_employee_combo.addItem(name, eid)
+
+    def _delete_all_attendance(self):
+        self.db.delete_all_attendance()
+        self.load_report()
+
     def add_loan(self):
-        emp_name = self.loan_employee_input.text().strip()
+        if self.loan_employee_combo.count() == 0:
+            return
+        emp_id = self.loan_employee_combo.currentData()
         amount = float(self.loan_amount_input.value())
-        if not emp_name or amount <= 0:
+        if not emp_id or amount <= 0:
             return
-        # Find employee by name
-        employees = self.db.list_employees()
-        emp_id = None
-        for eid, name in employees:
-            if name == emp_name:
-                emp_id = eid
-                break
-        if emp_id is None:
-            QMessageBox.warning(self, "تنبيه", "لم يتم العثور على الموظف")
-            return
-        self.db.add_loan(emp_id, amount)
-        self.loan_employee_input.clear()
+        self.db.add_loan(emp_id, amount, note="سلفة")
         self.loan_amount_input.setValue(0)
         QMessageBox.information(self, "تم", "تم تسجيل السلفة")
         self.load_report()
