@@ -10,6 +10,18 @@ from mina_al_arabi.db import Database, RECEIPTS_DIR
 import os
 
 
+def format_amount(amount: float) -> str:
+    return f"{int(round(amount))}"
+
+
+def format_time_ar(dt: datetime) -> str:
+    h = dt.strftime("%I")
+    m = dt.strftime("%M")
+    ampm = dt.strftime("%p")
+    suffix = "ص" if ampm == "AM" else "م"
+    return f"{dt.strftime('%Y-%m-%d')} {h}:{m} {suffix}"
+
+
 class AddServiceDialog(QDialog):
     def __init__(self, db: Database, parent=None):
         super().__init__(parent)
@@ -159,7 +171,7 @@ class CashierDashboard(QWidget):
         # Add service buttons
         row, col = 0, 0
         for sid, name, price in self.db.list_services():
-            btn = QPushButton(f"{name}\n{price:.2f} ج.م")
+            btn = QPushButton(f"{name}\n{format_amount(price)} ج.م")
             btn.setMinimumSize(160, 120)
             btn.setStyleSheet("QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; font-size: 16px; } QPushButton:hover { background-color: #B8962D; }")
             btn.clicked.connect(lambda _, n=name, p=price: self.add_service_to_invoice(n, p))
@@ -241,19 +253,19 @@ class CashierDashboard(QWidget):
             self.db.add_sale_item(sale_id, name, price, qty)
 
         # Render simple text receipt
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = os.path.join(RECEIPTS_DIR, f"receipt_service_{sale_id}_{ts}.txt")
+        ts = datetime.now()
+        path = os.path.join(RECEIPTS_DIR, f"receipt_service_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
         lines = []
         lines.append("صالون مينا العربي")
-        lines.append(f"التاريخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        lines.append(f"التاريخ: {format_time_ar(ts)}")
         lines.append(f"الموظف: {employee_name}")
         lines.append("-" * 30)
         for name, price, qty in items:
-            lines.append(f"{name} x{qty} - {price:.2f} ج.م")
+            lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
         lines.append("-" * 30)
-        lines.append(f"الإجمالي قبل الخصم: {total:.2f} ج.م")
+        lines.append(f"الإجمالي قبل الخصم: {format_amount(total)} ج.م")
         lines.append(f"الخصم: {discount_percent}%")
-        lines.append(f"الإجمالي بعد الخصم: {total_after:.2f} ج.م")
+        lines.append(f"الإجمالي بعد الخصم: {format_amount(total_after)} ج.م")
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 

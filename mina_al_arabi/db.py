@@ -64,6 +64,7 @@ class Database:
                 total REAL NOT NULL,
                 discount_percent INTEGER NOT NULL DEFAULT 0,
                 type TEXT NOT NULL, -- 'service' or 'product'
+                buyer_type TEXT NOT NULL DEFAULT 'customer',
                 FOREIGN KEY(employee_id) REFERENCES employees(id)
             )
             """)
@@ -113,6 +114,12 @@ class Database:
                 FOREIGN KEY(employee_id) REFERENCES employees(id)
             )
             """)
+            # Migrations: add buyer_type to existing sales if missing
+            try:
+                c.execute("ALTER TABLE sales ADD COLUMN buyer_type TEXT NOT NULL DEFAULT 'customer'")
+            except Exception:
+                pass
+
             conn.commit()
 
     # General helpers
@@ -202,13 +209,14 @@ class Database:
 
     # Sales and items
     def create_sale(self, date: str, employee_id: Optional[int], customer_name: Optional[str],
-                    is_shop: int, total: float, discount_percent: int, sale_type: str) -> int:
+                    is_shop: int, total: float, discount_percent: int, sale_type: str,
+                    buyer_type: str = "customer") -> int:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            INSERT INTO sales(date, employee_id, customer_name, is_shop, total, discount_percent, type)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (date, employee_id, customer_name, is_shop, total, discount_percent, sale_type))
+            INSERT INTO sales(date, employee_id, customer_name, is_shop, total, discount_percent, type, buyer_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (date, employee_id, customer_name, is_shop, total, discount_percent, sale_type, buyer_type))
             sale_id = c.lastrowid
             conn.commit()
             return sale_id
@@ -233,7 +241,7 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            SELECT id, date, total, discount_percent, type, is_shop
+            SELECT id, date, total, discount_percent, type, is_shop, buyer_type
             FROM sales
             WHERE employee_id = ? AND substr(date,1,10) = ?
             ORDER BY date ASC
@@ -247,6 +255,29 @@ class Database:
                     "discount_percent": r[3],
                     "type": r[4],
                     "is_shop": r[5],
+                    "buyer_type": r[6],
+                } for r in rows
+            ]
+
+    def list_sales_by_employee_in_month(self, employee_id: int, year: int, month: int) -> List[Dict[str, Any]]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT id, date, total, discount_percent, type, is_shop, buyer_type
+            FROM sales
+            WHERE employee_id = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            ORDER BY date ASC
+            """, (employee_id, str(year), f"{month:02d}"))
+            rows = c.fetchall()
+            return [
+                {
+                    "id": r[0],
+                    "date": r[1],
+                    "total": r[2],
+                    "discount_percent": r[3],
+                    "type": r[4],
+                    "is_shop": r[5],
+                    "buyer_type": r[6],
                 } for r in rows
             ]
 
@@ -268,13 +299,24 @@ class Database:
             c.execute("SELECT id, date, category, amount, note FROM expenses ORDER BY date DESC")
             return c.fetchall()
 
+    def delete_expense_by_id(self, expense_id: int):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+            conn.commit()
+
+    def delete_all_expenses(self):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM expenses")
+            conn.commit()
+
     # Attendance
     def check_in(self, employee_id: int):
         now = datetime.now().strftime("%Y-%m-%d")
         time = datetime.now().strftime("%H:%M:%S")
         with self.connect() as conn:
             c = conn.cursor()
-            # If entry exists for today, update check_in
             c.execute("""
             INSERT INTO attendance(employee_id, date, check_in)
             VALUES (?, ?, ?)
@@ -293,6 +335,12 @@ class Database:
             """, (time, employee_id, now))
             conn.commit()
 
+    def delete_all_attendance(self):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM attendance")
+            conn.commit()
+
     def add_loan(self, employee_id: int, amount: float, note: Optional[str] = None):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with self.connect() as conn:
@@ -302,6 +350,26 @@ class Database:
             VALUES (?, ?, ?, ?)
             """, (employee_id, now, amount, note))
             conn.commit()
+
+    def list_loans_by_employee_on_date(self, employee_id: int, date_str: str) -> List[Tuple[int, str, float, Optional[str]]]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT id, date, amount, note FROM loans
+            WHERE employee_id = ? AND substr(date,1,10) = ?
+            ORDER BY date ASC
+            """, (employee_id, date_str))
+            return c.fetchall()
+
+    def list_loans_by_employee_in_month(self, employee_id: int, year: int, month: int) -> List[Tuple[int, str, float, Optional[str]]]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT id, date, amount, note FROM loans
+            WHERE employee_id = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            ORDER BY date ASC
+            """, (employee_id, str(year), f"{month:02d}"))
+            return c.fetchall()
 
     def list_attendance_for_month(self, year: int, month: int) -> List[Dict[str, Any]]:
         with self.connect() as conn:
