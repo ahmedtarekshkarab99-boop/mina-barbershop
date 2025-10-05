@@ -1,8 +1,10 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QListWidget,
-    QListWidgetItem, QSpinBox, QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QMessageBox
+    QListWidgetItem, QSpinBox, QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QMessageBox,
+    QScrollArea, QGridLayout
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from datetime import datetime
 from mina_al_arabi.db import Database, RECEIPTS_DIR
 import os
@@ -66,48 +68,77 @@ class CashierDashboard(QWidget):
         super().__init__()
         self.db = db
 
-        main_layout = QVBoxLayout(self)
+        # Fonts
+        self.header_font = QFont("Cairo", 18, QFont.Bold)
+        self.body_font = QFont("Cairo", 14)
 
-        # Employee selection
+        root = QHBoxLayout(self)
+
+        # Left: Services (larger)
+        left = QVBoxLayout()
+        title_services = QLabel("الخدمات المتاحة")
+        title_services.setFont(self.header_font)
+        left.addWidget(title_services)
+
+        self.services_area = QScrollArea()
+        self.services_area.setWidgetResizable(True)
+        self.services_container = QWidget()
+        self.services_grid = QGridLayout(self.services_container)
+        self.services_grid.setSpacing(12)
+        self.services_area.setWidget(self.services_container)
+        left.addWidget(self.services_area)
+
+        # Right: Invoice
+        right = QVBoxLayout()
+        title_invoice = QLabel("الفاتورة")
+        title_invoice.setFont(self.header_font)
+        right.addWidget(title_invoice)
+
+        self.invoice_list = QListWidget()
+        self.invoice_list.setFont(self.body_font)
+        right.addWidget(self.invoice_list)
+
+        action_row = QHBoxLayout()
+        remove_btn = QPushButton("حذف العنصر المحدد")
+        remove_btn.clicked.connect(self.remove_selected_invoice_item)
+        action_row.addWidget(remove_btn)
+        right.addLayout(action_row)
+
+        totals_layout = QVBoxLayout()
+        self.total_before_label = QLabel("الإجمالي قبل الخصم: 0 ج.م")
+        self.total_before_label.setFont(self.body_font)
+        self.total_after_label = QLabel("الإجمالي بعد الخصم: 0 ج.م")
+        self.total_after_label.setFont(self.body_font)
+
+        discount_row = QHBoxLayout()
+        discount_row.addWidget(QLabel("الخصم:"))
+        self.discount_combo = QComboBox()
+        self.discount_combo.addItems(["بدون خصم", "10%", "15%", "20%"])
+        self.discount_combo.currentIndexChanged.connect(self._update_total)
+        discount_row.addWidget(self.discount_combo)
+
+        totals_layout.addWidget(self.total_before_label)
+        totals_layout.addWidget(self.total_after_label)
+        totals_layout.addLayout(discount_row)
+        right.addLayout(totals_layout)
+
+        print_btn = QPushButton("طباعة إيصال")
+        print_btn.clicked.connect(self.print_receipt)
+        right.addWidget(print_btn)
+
+        # Assemble
+        root.addLayout(left, 2)   # larger services area
+        root.addLayout(right, 1)
+
+        # Top bar for employee selection
         top_bar = QHBoxLayout()
         top_bar.addWidget(QLabel("اختر الموظف:"))
         self.employee_combo = QComboBox()
         top_bar.addWidget(self.employee_combo)
-
         refresh_emp_btn = QPushButton("تحديث")
         refresh_emp_btn.clicked.connect(self._load_employees)
         top_bar.addWidget(refresh_emp_btn)
-        main_layout.addLayout(top_bar)
-
-        # Services list
-        self.services_list = QListWidget()
-        main_layout.addWidget(QLabel("الخدمات المتاحة:"))
-        main_layout.addWidget(self.services_list)
-
-        # Add selected to invoice
-        btns = QHBoxLayout()
-        add_btn = QPushButton("إضافة للخدمة المختارة إلى الفاتورة")
-        add_btn.clicked.connect(self.add_selected_service_to_invoice)
-        btns.addWidget(add_btn)
-        main_layout.addLayout(btns)
-
-        # Invoice section
-        main_layout.addWidget(QLabel("الفاتورة:"))
-        self.invoice_list = QListWidget()
-        main_layout.addWidget(self.invoice_list)
-
-        totals_layout = QHBoxLayout()
-        self.total_label = QLabel("الإجمالي: 0 ج.م")
-        totals_layout.addWidget(self.total_label)
-        self.discount_combo = QComboBox()
-        self.discount_combo.addItems(["بدون خصم", "10%", "15%", "20%"])
-        totals_layout.addWidget(QLabel("الخصم:"))
-        totals_layout.addWidget(self.discount_combo)
-        main_layout.addLayout(totals_layout)
-
-        print_btn = QPushButton("طباعة إيصال")
-        print_btn.clicked.connect(self.print_receipt)
-        main_layout.addWidget(print_btn)
+        right.insertLayout(0, top_bar)
 
         self._load_employees()
         self._load_services()
@@ -118,18 +149,36 @@ class CashierDashboard(QWidget):
             self.employee_combo.addItem(name, eid)
 
     def _load_services(self):
-        self.services_list.clear()
+        # Clear grid
+        while self.services_grid.count():
+            item = self.services_grid.itemAt(0)
+            w = item.widget()
+            self.services_grid.removeItem(item)
+            if w:
+                w.setParent(None)
+        # Add service buttons
+        row, col = 0, 0
         for sid, name, price in self.db.list_services():
-            item = QListWidgetItem(f"{name} - {price:.2f} ج.م")
-            item.setData(Qt.UserRole, (name, price))
-            self.services_list.addItem(item)
+            btn = QPushButton(f"{name}\n{price:.2f} ج.م")
+            btn.setMinimumSize(160, 120)
+            btn.setStyleSheet("QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; font-size: 16px; } QPushButton:hover { background-color: #B8962D; }")
+            btn.clicked.connect(lambda _, n=name, p=price: self.add_service_to_invoice(n, p))
+            self.services_grid.addWidget(btn, row, col)
+            col += 1
+            if col >= 3:
+                col = 0
+                row += 1
 
-    def add_selected_service_to_invoice(self):
-        for item in self.services_list.selectedItems():
-            name, price = item.data(Qt.UserRole)
-            inv_item = QListWidgetItem(f"{name} - {price:.2f} ج.م")
-            inv_item.setData(Qt.UserRole, (name, price, 1))
-            self.invoice_list.addItem(inv_item)
+    def add_service_to_invoice(self, name: str, price: float):
+        inv_item = QListWidgetItem(f"{name} - {price:.2f} ج.م")
+        inv_item.setData(Qt.UserRole, (name, price, 1))
+        self.invoice_list.addItem(inv_item)
+        self._update_total()
+
+    def remove_selected_invoice_item(self):
+        for item in self.invoice_list.selectedItems():
+            row = self.invoice_list.row(item)
+            self.invoice_list.takeItem(row)
         self._update_total()
 
     def _update_total(self):
@@ -140,10 +189,12 @@ class CashierDashboard(QWidget):
 
         discount_text = self.discount_combo.currentText()
         discount_percent = 0
-        if discount_text.endswith("%"):
-            discount_percent = int(discount_text[:-1]) if discount_text != "بدون خصم" else 0
+        if discount_text.endswith("%") and discount_text != "بدون خصم":
+            discount_percent = int(discount_text[:-1])
+
         total_after = total * (1 - discount_percent/100.0)
-        self.total_label.setText(f"الإجمالي: {total_after:.2f} ج.م")
+        self.total_before_label.setText(f"الإجمالي قبل الخصم: {total:.2f} ج.م")
+        self.total_after_label.setText(f"الإجمالي بعد الخصم: {total_after:.2f} ج.م")
 
     def open_add_service_dialog(self):
         dlg = AddServiceDialog(self.db, self)
@@ -165,8 +216,8 @@ class CashierDashboard(QWidget):
 
         discount_text = self.discount_combo.currentText()
         discount_percent = 0
-        if discount_text.endswith("%"):
-            discount_percent = int(discount_text[:-1]) if discount_text != "بدون خصم" else 0
+        if discount_text.endswith("%") and discount_text != "بدون خصم":
+            discount_percent = int(discount_text[:-1])
 
         total = 0.0
         items = []
@@ -200,8 +251,9 @@ class CashierDashboard(QWidget):
         for name, price, qty in items:
             lines.append(f"{name} x{qty} - {price:.2f} ج.م")
         lines.append("-" * 30)
+        lines.append(f"الإجمالي قبل الخصم: {total:.2f} ج.م")
         lines.append(f"الخصم: {discount_percent}%")
-        lines.append(f"الإجمالي: {total_after:.2f} ج.م")
+        lines.append(f"الإجمالي بعد الخصم: {total_after:.2f} ج.م")
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
