@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QPushButton, QListWidget,
-    QListWidgetItem, QMessageBox
+    QListWidgetItem, QMessageBox, QAbstractItemView
 )
 from PySide6.QtCore import Qt
 from datetime import datetime
@@ -26,7 +26,7 @@ class SalesDashboard(QWidget):
 
         layout.addWidget(QLabel("المنتجات:"))
         self.products_list = QListWidget()
-        self.products_list.setSelectionMode(self.products_list.MultiSelection)
+        self.products_list.setSelectionMode(QAbstractItemView.MultiSelection)
         layout.addWidget(self.products_list)
 
         add_btn = QPushButton("إضافة المنتجات المحددة إلى الفاتورة")
