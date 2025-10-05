@@ -4,12 +4,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
-from .db import Database
-from .dashboards.cashier import CashierDashboard
-from .dashboards.inventory import InventoryDashboard
-from .dashboards.sales import SalesDashboard
-from .dashboards.expenses import ExpensesDashboard
-from .dashboards.attendance import AttendanceDashboard
+from mina_al_arabi.db import Database
+from mina_al_arabi.dashboards.cashier import CashierDashboard
+from mina_al_arabi.dashboards.inventory import InventoryDashboard
+from mina_al_arabi.dashboards.sales import SalesDashboard
+from mina_al_arabi.dashboards.expenses import ExpensesDashboard
+from mina_al_arabi.dashboards.attendance import AttendanceDashboard
 
 
 class MainWindow(QMainWindow):
