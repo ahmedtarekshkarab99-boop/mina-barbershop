@@ -135,6 +135,12 @@ class Database:
             c.execute("SELECT id, name FROM employees ORDER BY name")
             return c.fetchall()
 
+    def delete_employee_by_name(self, name: str):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM employees WHERE name = ?", (name,))
+            conn.commit()
+
     # Services
     def add_service(self, name: str, price: float):
         with self.connect() as conn:
@@ -147,6 +153,18 @@ class Database:
             c = conn.cursor()
             c.execute("SELECT id, name, price FROM services ORDER BY name")
             return c.fetchall()
+
+    def delete_service_by_name(self, name: str):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM services WHERE name = ?", (name,))
+            conn.commit()
+
+    def update_service_price(self, name: str, new_price: float):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("UPDATE services SET price = ? WHERE name = ?", (new_price, name))
+            conn.commit()
 
     # Products
     def add_product(self, name: str, price: float, quantity: int):
@@ -176,6 +194,12 @@ class Database:
             c.execute("SELECT id, name, price, quantity FROM products WHERE name = ?", (name,))
             return c.fetchone()
 
+    def delete_product(self, product_id: int):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM products WHERE id = ?", (product_id,))
+            conn.commit()
+
     # Sales and items
     def create_sale(self, date: str, employee_id: Optional[int], customer_name: Optional[str],
                     is_shop: int, total: float, discount_percent: int, sale_type: str) -> int:
@@ -203,6 +227,28 @@ class Database:
             c = conn.cursor()
             c.execute("SELECT id, sale_id, item_name, unit_price, quantity FROM sale_items WHERE sale_id = ?", (sale_id,))
             return c.fetchall()
+
+    def list_sales_by_employee_on_date(self, employee_id: int, date_str: str) -> List[Dict[str, Any]]:
+        """Return sales (both services and products) by an employee on a specific YYYY-MM-DD date."""
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT id, date, total, discount_percent, type, is_shop
+            FROM sales
+            WHERE employee_id = ? AND substr(date,1,10) = ?
+            ORDER BY date ASC
+            """, (employee_id, date_str))
+            rows = c.fetchall()
+            return [
+                {
+                    "id": r[0],
+                    "date": r[1],
+                    "total": r[2],
+                    "discount_percent": r[3],
+                    "type": r[4],
+                    "is_shop": r[5],
+                } for r in rows
+            ]
 
     # Expenses
     def add_expense(self, category: str, amount: float, note: Optional[str] = None, date: Optional[str] = None):
