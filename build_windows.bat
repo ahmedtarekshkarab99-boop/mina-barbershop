@@ -21,6 +21,7 @@ pyinstaller --noconfirm ^
   --name "MinaAlArabiSalonManager" ^
   --windowed ^
   --collect-all PySide6 ^
+  --collect-submodules mina_al_arabi ^
   -p . ^
   mina_al_arabi/main.py
 

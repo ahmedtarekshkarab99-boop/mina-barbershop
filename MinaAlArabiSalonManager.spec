@@ -2,7 +2,8 @@
 
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = collect_submodules('PySide6')
+# Ensure PySide6 and our app package submodules are collected
+hiddenimports = collect_submodules('PySide6') + collect_submodules('mina_al_arabi')
 
 block_cipher = None
 
