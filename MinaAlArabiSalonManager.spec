@@ -4,6 +4,8 @@ from PyInstaller.utils.hooks import collect_submodules
 
 # Ensure PySide6 and our app package submodules are collected
 hiddenimports = collect_submodules('PySide6') + collect_submodules('mina_al_arabi')
+# Also explicitly include attendance dashboard (belt-and-braces)
+hiddenimports += ['mina_al_arabi.dashboards.attendance']
 
 block_cipher = None
 
