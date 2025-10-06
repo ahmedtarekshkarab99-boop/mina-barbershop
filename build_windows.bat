@@ -17,11 +17,16 @@ pip install pyinstaller
 
 echo.
 echo [4/4] Building EXE with PyInstaller...
+REM Clean previous build outputs to avoid stale analysis
+if exist build rmdir /s /q build
+if exist dist rmdir /s /q dist
+
 pyinstaller --noconfirm ^
   --name "MinaAlArabiSalonManager" ^
   --windowed ^
   --collect-all PySide6 ^
   --collect-submodules mina_al_arabi ^
+  --hidden-import mina_al_arabi.dashboards.attendance ^
   -p . ^
   mina_al_arabi/main.py
 
