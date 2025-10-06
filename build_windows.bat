@@ -19,6 +19,12 @@ pyinstaller --noconfirm ^
   --collect-all PySide6 ^
   --collect-submodules mina_al_arabi ^
   --hidden-import mina_al_arabi.dashboards.attendance ^
+  --hidden-import mina_al_arabi.dashboards.cashier ^
+  --hidden-import mina_al_arabi.dashboards.inventory ^
+  --hidden-import mina_al_arabi.dashboards.sales ^
+  --hidden-import mina_al_arabi.dashboards.expenses ^
+  --hidden-import mina_al_arabi.dashboards.reports ^
+  --additional-hooks-dir hooks ^
   -p . ^
   mina_al_arabi/main.py
 
