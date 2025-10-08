@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 # Ensure PySide6 and our app package submodules are collected
 hiddenimports = collect_submodules('PySide6') + collect_submodules('mina_al_arabi')
@@ -16,11 +16,14 @@ hiddenimports += [
 
 block_cipher = None
 
+# Collect PySide6 data files (plugins, Qt configs like qt.conf, etc.)
+pyside6_datas = collect_data_files('PySide6', include_py_files=False)
+
 a = Analysis(
     ['mina_al_arabi/main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[],
+    datas=pyside6_datas,
     hiddenimports=hiddenimports,
     hookspath=['hooks'],
     hooksconfig={},
