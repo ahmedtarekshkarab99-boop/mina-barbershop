@@ -6,6 +6,7 @@ from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 hiddenimports = collect_submodules('PySide6') + collect_submodules('mina_al_arabi')
 # Explicitly include dashboards to avoid analysis misses
 hiddenimports += [
+    'mina_al_arabi.dashboards.attendance',
     'mina_al_arabi.dashboards.cashier',
     'mina_al_arabi.dashboards.inventory',
     'mina_al_arabi.dashboards.sales',
