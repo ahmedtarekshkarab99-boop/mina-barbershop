@@ -36,7 +36,6 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.inventory_tab, "المخزن")
         self.tabs.addTab(self.sales_tab, "المبيعات")
         self.tabs.addTab(self.expenses_tab, "المصاريف")
-        self.tabs.addTab(self.attendance_tab, "الحضور")
         self.tabs.addTab(self.reports_tab, "التقارير")
 
         # Menu
