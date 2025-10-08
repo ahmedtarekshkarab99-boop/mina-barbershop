@@ -7,5 +7,6 @@ hiddenimports = [
     "mina_al_arabi.dashboards.inventory",
     "mina_al_arabi.dashboards.sales",
     "mina_al_arabi.dashboards.expenses",
+    "mina_al_arabi.dashboards.attendance",
     "mina_al_arabi.dashboards.reports",
 ]
