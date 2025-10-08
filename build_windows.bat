@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-REM Build Windows executable for "Mina Al Arabi Salon Manager" exactly like the previous working process.
+REM Build Windows executable for "Mina Al Arabi Salon Manager" (full one-folder like the previous working release).
 
 set APP_NAME=MinaAlArabiSalonManager
 set DIST_DIR=dist\%APP_NAME%
@@ -32,7 +32,7 @@ for /r %%f in (*.pyc) do del /f /q "%%f"
 for /r %%f in (*.pyo) do del /f /q "%%f"
 
 echo.
-echo [5/6] Building via spec file...
+echo [5/6] Building via spec file (includes PySide6 data: qt.conf, plugins, DLLs)...
 pyinstaller "%APP_NAME%.spec" --clean
 if errorlevel 1 (
   echo   ERROR: Build failed via spec file.
@@ -40,7 +40,9 @@ if errorlevel 1 (
 )
 
 echo.
-echo [6/6] Build finished. Final contents of "%DIST_DIR%":
+echo [6/6] Build finished. Launch from inside:
+echo   %DIST_DIR%\MinaAlArabiSalonManager.exe
+echo Final contents of "%DIST_DIR%":
 dir /b "%DIST_DIR%"
 
 endlocal
