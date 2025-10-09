@@ -91,6 +91,10 @@ class ExpensesDashboard(QWidget):
         self.summary_label.setFont(self.body_font)
         layout.addWidget(self.summary_label, alignment=Qt.AlignRight)
 
+        self.others_summary_label = QLabel("إجمالي بند أخرى: 0 ج.م")
+        self.others_summary_label.setFont(self.body_font)
+        layout.addWidget(self.others_summary_label, alignment=Qt.AlignRight)
+
         self.load_expenses()
 
     def add_expense(self):
@@ -126,6 +130,7 @@ class ExpensesDashboard(QWidget):
         rows = self.db.list_expenses()
         self.table.setRowCount(0)
         total = 0.0
+        others_total = 0.0
         for rid, date, cat, amount, note in rows:
             r = self.table.rowCount()
             self.table.insertRow(r)
@@ -142,5 +147,8 @@ class ExpensesDashboard(QWidget):
             self.table.setItem(r, 2, QTableWidgetItem(cat_display))
             self.table.setItem(r, 3, QTableWidgetItem(format_amount(amount)))
             total += amount
+            if cat == "أخرى":
+                others_total += amount
         self.table.resizeColumnsToContents()
         self.summary_label.setText(f"إجمالي المصاريف: {format_amount(total)} ج.م")
+        self.others_summary_label.setText(f"إجمالي بند أخرى: {format_amount(others_total)} ج.م")

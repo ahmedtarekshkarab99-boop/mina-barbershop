@@ -106,10 +106,10 @@ class SalesDashboard(QWidget):
         totals_layout.addWidget(self.total_label)
         right.addLayout(totals_layout)
 
-        print_btn = QPushButton("طباعة إيصال")
-        print_btn.setFont(self.body_font)
-        print_btn.clicked.connect(self.print_receipt)
-        right.addWidget(print_btn)
+        self.submit_btn = QPushButton("طباعة إيصال")
+        self.submit_btn.setFont(self.body_font)
+        self.submit_btn.clicked.connect(self._submit_invoice)
+        right.addWidget(self.submit_btn)
 
         root.addLayout(left, 2)
         root.addLayout(right, 1)
@@ -126,6 +126,9 @@ class SalesDashboard(QWidget):
 
         self.customer_input.setEnabled(is_customer)
         self.employee_combo.setEnabled(is_employee)
+
+        # Button text: print receipt for customer, register invoice for store/employee
+        self.submit_btn.setText("طباعة إيصال" if is_customer else "تسجيل الفاتورة")
 
     def _load_employees(self):
         self.employee_combo.clear()
@@ -176,7 +179,7 @@ class SalesDashboard(QWidget):
             total += price * qty
         self.total_label.setText(f"الإجمالي: {format_amount(total)} ج.م")
 
-    def print_receipt(self):
+    def _submit_invoice(self):
         if self.invoice_list.count() == 0:
             QMessageBox.warning(self, "تنبيه", "الفاتورة فارغة")
             return
@@ -224,29 +227,27 @@ class SalesDashboard(QWidget):
             for _, name, price, qty in items:
                 self.db.add_expense(category=name, amount=price * qty, note=f"فاتورة رقم {sale_id}")
 
-        ts = datetime.now()
-        arabic_time = format_time_ar(ts)
-        path = os.path.join(RECEIPTS_DIR, f"receipt_product_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
-        lines = []
-        lines.append("صالون مينا العربي")
-        lines.append(f"التاريخ: {ts.strftime('%Y-%m-%d')} {arabic_time}")
-        if is_store:
-            lines.append("المشتري: المحل")
-        elif is_employee:
-            # Show employee name
-            emp_name = self.employee_combo.currentText() or ""
-            lines.append(f"المشتري: موظف - {emp_name}")
-        else:
+        # Action: for customer -> print receipt, otherwise -> just register (no receipt)
+        if is_customer:
+            ts = datetime.now()
+            arabic_time = format_time_ar(ts)
+            path = os.path.join(RECEIPTS_DIR, f"receipt_product_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
+            lines = []
+            lines.append("صالون مينا العربي")
+            lines.append(f"التاريخ: {ts.strftime('%Y-%m-%d')} {arabic_time}")
             lines.append(f"المشتري: {customer_name if customer_name else 'غير محدد'}")
-        lines.append("-" * 30)
-        for _, name, price, qty in items:
-            lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-        lines.append("-" * 30)
-        lines.append(f"الإجمالي: {format_amount(total)} ج.م")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
+            lines.append("-" * 30)
+            for _, name, price, qty in items:
+                lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
+            lines.append("-" * 30)
+            lines.append(f"الإجمالي: {format_amount(total)} ج.م")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            QMessageBox.information(self, "تم", f"تم حفظ الإيصال:\n{path}")
+        else:
+            QMessageBox.information(self, "تم", "تم تسجيل الفاتورة بنجاح.")
 
-        QMessageBox.information(self, "تم", f"تم حفظ الإيصال:\n{path}")
+        # Reset
         self.invoice_list.clear()
         self.customer_input.clear()
         self.customer_radio.setChecked(True)
