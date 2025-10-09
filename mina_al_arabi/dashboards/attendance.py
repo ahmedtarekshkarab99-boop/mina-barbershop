@@ -1,11 +1,26 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QGridLayout, QSpinBox,
-    QMessageBox, QTableWidget, QTableWidgetItem, QComboBox
+    QMessageBox, QTableWidget, QTableWidgetItem, QComboBox, QSizePolicy
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from datetime import datetime
 from mina_al_arabi.db import Database
+
+
+def format_time_12h_ar(time_str: str) -> str:
+    """Convert 'HH:MM:SS' to Arabic 12-hour format 'hh:mm ص/م'."""
+    if not time_str:
+        return ""
+    try:
+        dt = datetime.strptime(time_str, "%H:%M:%S")
+        h = dt.strftime("%I")
+        m = dt.strftime("%M")
+        ampm = dt.strftime("%p")
+        suffix = "ص" if ampm == "AM" else "م"
+        return f"{h}:{m} {suffix}"
+    except Exception:
+        return time_str
 
 
 class AttendanceDashboard(QWidget):
@@ -17,12 +32,17 @@ class AttendanceDashboard(QWidget):
         self.body_font = QFont("Cairo", 14)
 
         layout = QVBoxLayout(self)
+        # Remove extra margins/spacing so content starts from top neatly
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         # Employees grid
         title_emp = QLabel("الموظفون:")
         title_emp.setFont(self.header_font)
         layout.addWidget(title_emp)
         self.grid = QGridLayout()
+        self.grid.setHorizontalSpacing(8)
+        self.grid.setVerticalSpacing(8)
         layout.addLayout(self.grid)
 
         # Loans
@@ -66,7 +86,12 @@ class AttendanceDashboard(QWidget):
         self.report_table = QTableWidget(0, 4)
         self.report_table.setFont(self.body_font)
         self.report_table.setHorizontalHeaderLabels(["التاريخ", "الموظف", "حضور", "انصراف"])
-        layout.addWidget(self.report_table, alignment=Qt.AlignCenter)
+        # Make table occupy more space
+        self.report_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.report_table.setMinimumHeight(420)
+        self.report_table.horizontalHeader().setStretchLastSection(True)
+        self.report_table.verticalHeader().setVisible(False)
+        layout.addWidget(self.report_table)
 
         # Delete all attendance data button
         delete_all_btn = QPushButton("حذف كل البيانات")
@@ -155,5 +180,6 @@ class AttendanceDashboard(QWidget):
             self.report_table.insertRow(i)
             self.report_table.setItem(i, 0, QTableWidgetItem(r["date"]))
             self.report_table.setItem(i, 1, QTableWidgetItem(r["employee"]))
-            self.report_table.setItem(i, 2, QTableWidgetItem(r["check_in"] or ""))
-            self.report_table.setItem(i, 3, QTableWidgetItem(r["check_out"] or ""))
+            self.report_table.setItem(i, 2, QTableWidgetItem(format_time_12h_ar(r["check_in"]) if r["check_in"] else ""))
+            self.report_table.setItem(i, 3, QTableWidgetItem(format_time_12h_ar(r["check_out"]) if r["check_out"] else ""))
+        self.report_table.resizeColumnsToContents()
