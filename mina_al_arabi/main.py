@@ -11,6 +11,7 @@ from mina_al_arabi.dashboards.sales import SalesDashboard
 from mina_al_arabi.dashboards.expenses import ExpensesDashboard
 from mina_al_arabi.dashboards.attendance import AttendanceDashboard
 from mina_al_arabi.dashboards.reports import ReportsDashboard
+from mina_al_arabi.dashboards.home import HomeDashboard
 
 
 class MainWindow(QMainWindow):
@@ -27,16 +28,20 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
+        self.home_tab = HomeDashboard(self.db)
         self.cashier_tab = CashierDashboard(self.db)
         self.inventory_tab = InventoryDashboard(self.db)
         self.sales_tab = SalesDashboard(self.db)
         self.expenses_tab = ExpensesDashboard(self.db)
+        self.attendance_tab = AttendanceDashboard(self.db)
         self.reports_tab = ReportsDashboard(self.db)
 
+        self.tabs.addTab(self.home_tab, "الرئيسية")
         self.tabs.addTab(self.cashier_tab, "الكاشير (الخدمات)")
         self.tabs.addTab(self.inventory_tab, "المخزن")
         self.tabs.addTab(self.sales_tab, "المبيعات")
         self.tabs.addTab(self.expenses_tab, "المصاريف")
+        self.tabs.addTab(self.attendance_tab, "الحضور")
         self.tabs.addTab(self.reports_tab, "التقارير")
 
         # Menu
@@ -127,6 +132,7 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, toolbar)
         # Actions to switch tabs
+        act_home = QAction("الرئيسية", self)
         act_cashier = QAction("الكاشير", self)
         act_inventory = QAction("المخزن", self)
         act_sales = QAction("المبيعات", self)
@@ -135,6 +141,7 @@ class MainWindow(QMainWindow):
         act_reports = QAction("التقارير", self)
 
         # Connect actions
+        act_home.triggered.connect(lambda: self.tabs.setCurrentWidget(self.home_tab))
         act_cashier.triggered.connect(lambda: self.tabs.setCurrentWidget(self.cashier_tab))
         act_inventory.triggered.connect(lambda: self.tabs.setCurrentWidget(self.inventory_tab))
         act_sales.triggered.connect(lambda: self.tabs.setCurrentWidget(self.sales_tab))
@@ -142,6 +149,7 @@ class MainWindow(QMainWindow):
         act_attendance.triggered.connect(lambda: self.tabs.setCurrentWidget(self.attendance_tab))
         act_reports.triggered.connect(lambda: self.tabs.setCurrentWidget(self.reports_tab))
 
+        toolbar.addAction(act_home)
         toolbar.addAction(act_cashier)
         toolbar.addAction(act_inventory)
         toolbar.addAction(act_sales)
