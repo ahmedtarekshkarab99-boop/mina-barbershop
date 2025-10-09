@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox, QTableWidget, QTableWidgetItem, QPushButton, QRadioButton
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox, QTableWidget, QTableWidgetItem, QPushButton, QRadioButton, QMessageBox
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
@@ -67,6 +67,11 @@ class ReportsDashboard(QWidget):
         generate_btn.clicked.connect(self.refresh)
         controls.addWidget(generate_btn)
 
+        clear_btn = QPushButton("تصفيه الحساب")
+        clear_btn.setFont(self.body_font)
+        clear_btn.clicked.connect(self._clear_employee_account)
+        controls.addWidget(clear_btn)
+
         layout.addLayout(controls)
 
         self.table = QTableWidget(0, 3)
@@ -79,7 +84,7 @@ class ReportsDashboard(QWidget):
         layout.addWidget(self.summary_label)
 
         self._load_employees()
-
+        self
     def _load_employees(self):
         self.employee_combo.clear()
         for eid, name in self.db.list_employees():
@@ -142,3 +147,19 @@ class ReportsDashboard(QWidget):
             f"الخصومات: {format_amount(total_deductions)} ج.م | "
             f"الرصيد: {format_amount(balance)} ج.م"
         )
+
+    def _clear_employee_account(self):
+        if self.employee_combo.count() == 0:
+            return
+        emp_name = self.employee_combo.currentText()
+        emp_id = self.employee_combo.currentData()
+        confirm = QMessageBox.question(self, "تأكيد", f"هل تريد تصفية حساب الموظف: {emp_name}؟ سيتم حذف الفواتير والسلف الخاصة به.")
+        if confirm == QMessageBox.Yes:
+            # Delete sales and loans for this employee
+            try:
+                self.db.delete_sales_and_items_by_employee(emp_id)
+                self.db.delete_loans_by_employee(emp_id)
+                QMessageBox.information(self, "تم", "تم تصفية حساب الموظف.")
+                self.refresh()
+            except Exception as e:
+                QMessageBox.critical(self, "خطأ", f"حدث خطأ أثناء التصفية:\n{e}")
