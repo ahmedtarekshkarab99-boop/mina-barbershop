@@ -3,10 +3,11 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QSpinBox, QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QMessageBox,
     QScrollArea, QGridLayout
 )
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QSizeF
+from PySide6.QtGui import QFont, QTextDocument
+from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from datetime import datetime
-from mina_al_arabi.db import Database, RECEIPTS_DIR
+from mina_al_arabi.db import Database, RECEIPTS_DIR, DATA_DIR
 import os
 
 
@@ -252,23 +253,115 @@ class CashierDashboard(QWidget):
         for name, price, qty in items:
             self.db.add_sale_item(sale_id, name, price, qty)
 
-        # Render simple text receipt
+        # Build professional, large HTML receipt (RTL) and save both HTML and TXT
         ts = datetime.now()
-        path = os.path.join(RECEIPTS_DIR, f"receipt_service_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
-        lines = []
-        lines.append("صالون مينا العربي")
-        lines.append(f"التاريخ: {format_time_ar(ts)}")
-        lines.append(f"الموظف: {employee_name}")
-        lines.append("-" * 30)
+        basename = f"receipt_service_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}"
+        txt_path = os.path.join(RECEIPTS_DIR, f"{basename}.txt")
+        html_path = os.path.join(RECEIPTS_DIR, f"{basename}.html")
+
+        rows_html = ""
+        for name, price, qty in items:
+            rows_html += f"<tr><td>{name}</td><td>{qty}</td><td>{format_amount(price)}</td><td>{format_amount(price * qty)}</td></tr>"
+
+        receipt_html = f"""<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>إيصال خدمة</title>
+<style>
+  body {{ font-family: 'Cairo', sans-serif; color: #000; margin: 24px; }}
+  .brand {{ font-size: 28px; font-weight: 700; text-align: center; }}
+  .meta {{ font-size: 16px; margin-top: 6px; text-align: center; }}
+  .separator {{ margin: 12px 0; border-top: 2px solid #000; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 16px; }}
+  th, td {{ border: 1px solid #000; padding: 8px; }}
+  th {{ background: #f0f0f0; }}
+  .total {{ font-size: 20px; font-weight: 700; text-align: left; margin-top: 12px; }}
+  .footer {{ margin-top: 16px; font-size: 14px; text-align: center; color: #444; }}
+</style>
+</head>
+<body>
+  <div class="brand">صالون مينا العربي</div>
+  <div class="meta">التاريخ: {format_time_ar(ts)}</div>
+  <div class="meta">الموظف: {employee_name}</div>
+  <div class="separator"></div>
+  <table>
+    <thead>
+      <tr><th>الخدمة</th><th>الكمية</th><th>سعر الخدمة (ج.م)</th><th>الإجمالي (ج.م)</th></tr>
+    </thead>
+    <tbody>
+      {rows_html}
+    </tbody>
+  </table>
+  <div class="total">الإجمالي قبل الخصم: {format_amount(total)} ج.م</div>
+  <div class="total">الخصم: {discount_percent}%</div>
+  <div class="total">الإجمالي بعد الخصم: {format_amount(total_after)} ج.م</div>
+  <div class="footer">شكراً لزيارتكم</div>
+</body>
+</html>"""
+
+        # Plain text alongside
+        lines = [
+            "صالون مينا العربي",
+            f"التاريخ: {format_time_ar(ts)}",
+            f"الموظف: {employee_name}",
+            "-" * 30
+        ]
         for name, price, qty in items:
             lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-        lines.append("-" * 30)
-        lines.append(f"الإجمالي قبل الخصم: {format_amount(total)} ج.م")
-        lines.append(f"الخصم: {discount_percent}%")
-        lines.append(f"الإجمالي بعد الخصم: {format_amount(total_after)} ج.م")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
+        lines += ["-" * 30, f"الإجمالي قبل الخصم: {format_amount(total)} ج.م", f"الخصم: {discount_percent}%", f"الإجمالي بعد الخصم: {format_amount(total_after)} ج.م"]
+        with open(txt_path, "w", encoding="utf-8") as ftxt:
+            ftxt.write("\n".join(lines))
+        with open(html_path, "w", encoding="utf-8") as fhtml:
+            fhtml.write(receipt_html)
 
-        QMessageBox.information(self, "تم", f"تم حفظ الإيصال:\n{path}")
+        # Try to print the HTML (larger professional format)
+        try:
+            self._print_receipt_html(receipt_html)
+            QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
+        except Exception as e:
+            QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\nالمسار:\n{html_path}")
+
         self.invoice_list.clear()
         self._update_total()
+
+    def _load_saved_printer(self) -> str | None:
+        try:
+            if os.path.exists(self._printer_cfg_path):
+                with open(self._printer_cfg_path, "r", encoding="utf-8") as f:
+                    name = f.read().strip()
+                    return name or None
+        except Exception:
+            pass
+        return None
+
+    def _print_receipt_html(self, html: str):
+        # Select configured printer; if empty, pick Xprinter; else default
+        printer_info = None
+        if self._selected_printer:
+            for p in QPrinterInfo.availablePrinters():
+                if p.printerName() == self._selected_printer:
+                    printer_info = p
+                    break
+        if printer_info is None:
+            for p in QPrinterInfo.availablePrinters():
+                if "xprinter" in p.printerName().lower():
+                    printer_info = p
+                    break
+        if printer_info is None:
+            try:
+                printer_info = QPrinterInfo.defaultPrinter()
+            except Exception:
+                printer_info = None
+
+        printer = QPrinter()
+        if printer_info is not None:
+            printer.setPrinterName(printer_info.printerName())
+        # High resolution for clarity
+        printer.setResolution(300)
+
+        # Render HTML with big fonts and force a wider page (approx 80mm roll)
+        doc = QTextDocument()
+        doc.setDefaultFont(QFont("Cairo", 16))
+        doc.setHtml(html)
+        # 80mm ≈ 3.15in; at 300 dpi()

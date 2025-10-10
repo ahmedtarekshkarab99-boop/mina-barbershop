@@ -245,6 +245,11 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         try:
+            self.sales_tab._load_employees()
+            self.sales_tab.load_products()
+        except Exception:
+            pass
+        try:
             self.expenses_tab.load_expenses()
         except Exception:
             pass
