@@ -375,14 +375,14 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            SELECT a.date, e.name, a.check_in, a.check_out
+            SELECT a.date, e.name, a.check_in, a.check_out, a.employee_id
             FROM attendance a
             JOIN employees e ON e.id = a.employee_id
             WHERE substr(a.date,1,4) = ? AND substr(a.date,6,2) = ?
             ORDER BY a.date DESC
             """, (str(year), f"{month:02d}"))
             rows = c.fetchall()
-            return [{"date": r[0], "employee": r[1], "check_in": r[2], "check_out": r[3]} for r in rows]
+            return [{"date": r[0], "employee": r[1], "check_in": r[2], "check_out": r[3], "employee_id": r[4]} for r in rows]
 
     # Account clearing helpers
     def delete_sales_and_items_by_employee(self, employee_id: int):

@@ -83,9 +83,9 @@ class AttendanceDashboard(QWidget):
         report_layout.addWidget(gen_report_btn)
         layout.addLayout(report_layout)
 
-        self.report_table = QTableWidget(0, 4)
+        self.report_table = QTableWidget(0, 5)
         self.report_table.setFont(self.body_font)
-        self.report_table.setHorizontalHeaderLabels(["التاريخ", "الموظف", "حضور", "انصراف"])
+        self.report_table.setHorizontalHeaderLabels(["التاريخ", "الموظف", "حضور", "انصراف", "سلف"])
         # Make table occupy more space
         self.report_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.report_table.setMinimumHeight(420)
@@ -182,4 +182,8 @@ class AttendanceDashboard(QWidget):
             self.report_table.setItem(i, 1, QTableWidgetItem(r["employee"]))
             self.report_table.setItem(i, 2, QTableWidgetItem(format_time_12h_ar(r["check_in"]) if r["check_in"] else ""))
             self.report_table.setItem(i, 3, QTableWidgetItem(format_time_12h_ar(r["check_out"]) if r["check_out"] else ""))
+            # Loans column: sum loans for this employee on the same date
+            loans = self.db.list_loans_by_employee_on_date(r["employee_id"], r["date"])
+            loans_total = sum(l[2] for l in loans) if loans else 0.0
+            self.report_table.setItem(i, 4, QTableWidgetItem(str(int(round(loans_total))) if loans_total else ""))
         self.report_table.resizeColumnsToContents()
