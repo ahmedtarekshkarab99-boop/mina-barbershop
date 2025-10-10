@@ -319,12 +319,17 @@ class CashierDashboard(QWidget):
         with open(html_path, "w", encoding="utf-8") as fhtml:
             fhtml.write(receipt_html)
 
-        # Try to print the HTML (larger professional format)
+        # Try raw text to the Windows spooler first (better for thermal)
         try:
-            self._print_receipt_html(receipt_html)
+            self._raw_print_text("\n".join(lines))
             QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
-        except Exception as e:
-            QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\nالمسار:\n{html_path}")
+        except Exception as e_raw:
+            # Fallback: print the HTML (larger professional format)
+            try:
+                self._print_receipt_html(receipt_html)
+                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
+            except Exception as e_html:
+                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e_raw}\n{e_html}\nالمسار:\n{html_path}")
 
         self.invoice_list.clear()
         self._update_total()
@@ -340,6 +345,85 @@ class CashierDashboard(QWidget):
         return None
 
     def _print_receipt_html(self, html: str):
+        # Select configured printer; if empty, pick Xprinter; else default
+        printer_info = None
+        if self._selected_printer:
+            for p in QPrinterInfo.availablePrinters():
+                if p.printerName() == self._selected_printer:
+                    printer_info = p
+                    break
+        if printer_info is None:
+            for p in QPrinterInfo.availablePrinters():
+                if "xprinter" in p.printerName().lower():
+                    printer_info = p
+                    break
+        if printer_info is None:
+            try:
+                printer_info = QPrinterInfo.defaultPrinter()
+            except Exception:
+                printer_info = None
+
+        printer = QPrinter()
+        if printer_info is not None:
+            printer.setPrinterName(printer_info.printerName())
+        # High resolution for clarity
+        printer.setResolution(300)
+
+        # Safety: avoid PDF/XPS/virtual printers that save to files
+        try:
+            pname = printer_info.printerName() if printer_info else ""
+        except Exception:
+            pname = ""
+        low = pname.lower()
+        if (not pname) or any(bad in low for bad in ["pdf", "xps", "virtual"]):
+            raise Exception(f"تم اختيار طابعة غير مناسبة للطباعة الحرارية: {pname}. من فضلك اختر طابعة Xprinter من إدارة > اختيار الطابعة.")
+
+        # Render HTML with big fonts and force a wider page (approx 80mm roll)
+        doc = QTextDocument()
+        doc.setDefaultFont(QFont("Cairo", 16))
+        doc.setHtml(html)
+        # 80mm ≈ 3.15in; at 300 dpi => ~945 px width
+        doc.setPageSize(QSizeF(945, 10000))
+        doc.print_(printer)
+
+    def _raw_print_text(self, text: str):
+        # Try to send raw text to Windows spooler using pywin32 if available
+        try:
+            import win32print
+        except Exception as e:
+            raise Exception(f\"لا يمكن الطباعة الخام لأن win32print غير متاح: {e}\")
+        # Resolve printer name
+        name = self._selected_printer
+        if not name:
+            # try Xprinter first
+            for p in QPrinterInfo.availablePrinters():
+                if \"xprinter\" in p.printerName().lower():
+                    name = p.printerName()
+                    break
+        if not name:
+            # default windows printer
+            try:
+                name = QPrinterInfo.defaultPrinter().printerName()
+            except Exception:
+                name = None
+        if not name:
+            raise Exception(\"لا يوجد طابعة مختارة أو افتراضية للطباعة الخام.\")
+        # Avoid virtual printers
+        low = name.lower()
+        if any(bad in low for bad in [\"pdf\", \"xps\", \"virtual\"]) or not name.strip():
+            raise Exception(f\"تم اختيار طابعة غير مناسبة للطباعة الخام: {name}\")
+
+        # Encode text for Arabic (Windows-1256)
+        data = text.encode(\"cp1256\", errors=\"replace\")
+        hPrinter = win32print.OpenPrinter(name)
+        try:
+            job = win32print.StartDocPrinter(hPrinter, 1, (\"Receipt\", None, \"RAW\"))
+            win32print.StartPagePrinter(hPrinter)
+            win32print.WritePrinter(hPrinter, data)
+            win32print.EndPagePrinter(hPrinter)
+            win32print.EndDocPrinter(hPrinter)
+        finally:
+            win32print.ClosePrinter(hPrinter)
         # Select configured printer; if empty, pick Xprinter; else default
         printer_info = None
         if self._selected_printer:
