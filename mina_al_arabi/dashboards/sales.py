@@ -3,7 +3,8 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QMessageBox, QAbstractItemView, QScrollArea, QGridLayout, QComboBox, QRadioButton
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QTextDocument
+from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from datetime import datetime
 from mina_al_arabi.db import Database, RECEIPTS_DIR
 import os
@@ -246,9 +247,15 @@ class SalesDashboard(QWidget):
                 lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
             lines.append("-" * 30)
             lines.append(f"الإجمالي: {format_amount(total)} ج.م")
+            receipt_text = "\n".join(lines)
             with open(path, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines))
-            QMessageBox.information(self, "تم", f"تم حفظ الإيصال:\n{path}")
+                f.write(receipt_text)
+            # Try to print directly to thermal printer (Xprinter if available, else default)
+            try:
+                self._print_receipt(receipt_text)
+                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{path}")
+            except Exception as e:
+                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال ولكن فشلت الطباعة:\n{e}\nالمسار:\n{path}")
         else:
             QMessageBox.information(self, "تم", "تم تسجيل الفاتورة بنجاح.")
 
@@ -258,3 +265,10 @@ class SalesDashboard(QWidget):
         self.customer_radio.setChecked(True)
         self._update_total()
         self.load_products()
+
+    def _print_receipt(self, text: str):
+        # Select Xprinter if available, otherwise use default printer
+        printer_info = None
+        for p in QPrinterInfo.availablePrinters():
+            if "xprinter" in p.printerName().lower():
+                printer()
