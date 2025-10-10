@@ -1,12 +1,12 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QListWidget,
-    QListWidgetItem, QMessageBox, QAbstractItemView, QScrollArea, QGridLayout, QComboBox, QRadioButton
+    QListWidgetItem, QMessageBox, QAbstractItemView, QScrollArea, QGridLayout, QComboBox, QRadioButton, QInputDialog
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSizeF
 from PySide6.QtGui import QFont, QTextDocument
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from datetime import datetime
-from mina_al_arabi.db import Database, RECEIPTS_DIR
+from mina_al_arabi.db import Database, RECEIPTS_DIR, DATA_DIR
 import os
 
 
@@ -102,6 +102,17 @@ class SalesDashboard(QWidget):
         remove_btn.setFont(self.body_font)
         remove_btn.clicked.connect(self.remove_selected_invoice_item)
         action_row.addWidget(remove_btn)
+
+        choose_printer_btn = QPushButton("اختيار الطابعة")
+        choose_printer_btn.setFont(self.body_font)
+        choose_printer_btn.clicked.connect(self._choose_printer)
+        action_row.addWidget(choose_printer_btn)
+
+        test_print_btn = QPushButton("طباعة اختبار")
+        test_print_btn.setFont(self.body_font)
+        test_print_btn.clicked.connect(self._test_print)
+        action_row.addWidget(test_print_btn)
+
         right.addLayout(action_row)
 
         totals_layout = QHBoxLayout()
@@ -118,6 +129,10 @@ class SalesDashboard(QWidget):
         # Increase products section width relative to invoice
         root.addLayout(left, 3)
         root.addLayout(right, 1)
+
+        # Printer config path
+        self._printer_cfg_path = os.path.join(DATA_DIR, "printer.txt")
+        self._selected_printer = self._load_saved_printer()
 
         self._load_employees()
         self._update_buyer_fields()
@@ -314,15 +329,57 @@ class SalesDashboard(QWidget):
         self._update_total()
         self.load_products()
 
+    def _load_saved_printer(self) -> str | None:
+        try:
+            if os.path.exists(self._printer_cfg_path):
+                with open(self._printer_cfg_path, "r", encoding="utf-8") as f:
+                    name = f.read().strip()
+                    return name or None
+        except Exception:
+            pass
+        return None
+
+    def _save_printer(self, name: str):
+        try:
+            with open(self._printer_cfg_path, "w", encoding="utf-8") as f:
+                f.write(name or "")
+        except Exception:
+            pass
+
+    def _choose_printer(self):
+        printers = [p.printerName() for p in QPrinterInfo.availablePrinters()]
+        if not printers:
+            QMessageBox.warning(self, "تنبيه", "لا يوجد طابعات متاحة على النظام.")
+            return
+        current = self._selected_printer or (QPrinterInfo.defaultPrinter().printerName() if QPrinterInfo.defaultPrinter() else "")
+        name, ok = QInputDialog.getItem(self, "اختيار الطابعة", "اختر الطابعة:", printers, printers.index(current) if current in printers else 0, False)
+        if ok and name:
+            self._selected_printer = name
+            self._save_printer(name)
+            QMessageBox.information(self, "تم", f"تم اختيار الطابعة:\n{name}")
+
+    def _test_print(self):
+        content = "اختبار طباعة\nصالون مينا العربي\nالخط كبير وواضح\n1234567890\n"
+        try:
+            self._print_receipt_html(f"<html dir='rtl'><body style='font-family:Cairo,Arial; font-size:18pt;'>{content.replace('\n','<br/>')}</body></html>")
+            QMessageBox.information(self, "تم", "تم إرسال صفحة اختبار إلى الطابعة.")
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ", f"فشل إرسال صفحة الاختبار:\n{e}")
+
     def _print_receipt_html(self, html: str):
-        # Select Xprinter if available, otherwise use default printer
+        # Select configured printer; if empty, pick Xprinter; else default
         printer_info = None
-        for p in QPrinterInfo.availablePrinters():
-            if "xprinter" in p.printerName().lower():
-                printer_info = p
-                break
+        if self._selected_printer:
+            for p in QPrinterInfo.availablePrinters():
+                if p.printerName() == self._selected_printer:
+                    printer_info = p
+                    break
         if printer_info is None:
-            # fallback to default printer
+            for p in QPrinterInfo.availablePrinters():
+                if "xprinter" in p.printerName().lower():
+                    printer_info = p
+                    break
+        if printer_info is None:
             try:
                 printer_info = QPrinterInfo.defaultPrinter()
             except Exception:
@@ -331,12 +388,15 @@ class SalesDashboard(QWidget):
         printer = QPrinter()
         if printer_info is not None:
             printer.setPrinterName(printer_info.printerName())
-        # Use higher resolution for larger, clearer print
+        # High resolution for clarity
         printer.setResolution(300)
-        # Render HTML with big fonts and RTL
+
+        # Render HTML with big fonts and force a wider page (approx 80mm roll)
         doc = QTextDocument()
-        doc.setDefaultFont(QFont("Cairo", 14))
+        doc.setDefaultFont(QFont("Cairo", 16))
         doc.setHtml(html)
+        # 80mm ≈ 3.15in; at 300 dpi => ~945 px width
+        doc.setPageSize(QSizeF(945, 10000))
         doc.print_(printer)
         # Select Xprinter if available, otherwise use default printer
         printer_info = None
