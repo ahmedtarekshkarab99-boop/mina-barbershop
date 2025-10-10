@@ -139,6 +139,10 @@ class CashierDashboard(QWidget):
         print_btn.clicked.connect(self.print_receipt)
         right.addWidget(print_btn)
 
+        # Initialize printer selection from saved config
+        self._printer_cfg_path = os.path.join(DATA_DIR, "printer.txt")
+        self._selected_printer = self._load_saved_printer()
+
         # Assemble
         root.addLayout(left, 2)   # larger services area
         root.addLayout(right, 1)
