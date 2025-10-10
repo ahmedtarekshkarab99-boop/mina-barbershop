@@ -11,6 +11,7 @@ from mina_al_arabi.dashboards.sales import SalesDashboard
 from mina_al_arabi.dashboards.expenses import ExpensesDashboard
 from mina_al_arabi.dashboards.attendance import AttendanceDashboard
 from mina_al_arabi.dashboards.reports import ReportsDashboard
+from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +41,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.expenses_tab, "المصاريف")
         self.tabs.addTab(self.attendance_tab, "الحضور")
         self.tabs.addTab(self.reports_tab, "التقارير")
+        self.tabs.addTab(self.admin_report_tab, "تقرير إداري")
 
         # Menu
         self._build_menu()
@@ -135,6 +137,7 @@ class MainWindow(QMainWindow):
         act_expenses = QAction("المصاريف", self)
         act_attendance = QAction("الحضور", self)
         act_reports = QAction("التقارير", self)
+        act_admin_report = QAction("تقرير إداري", self)
 
         # Connect actions
         act_cashier.triggered.connect(lambda: self.tabs.setCurrentWidget(self.cashier_tab))
@@ -143,6 +146,7 @@ class MainWindow(QMainWindow):
         act_expenses.triggered.connect(lambda: self.tabs.setCurrentWidget(self.expenses_tab))
         act_attendance.triggered.connect(lambda: self.tabs.setCurrentWidget(self.attendance_tab))
         act_reports.triggered.connect(lambda: self.tabs.setCurrentWidget(self.reports_tab))
+        act_admin_report.triggered.connect(lambda: self.tabs.setCurrentWidget(self.admin_report_tab))
 
         toolbar.addAction(act_cashier)
         toolbar.addAction(act_inventory)
@@ -150,6 +154,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(act_expenses)
         toolbar.addAction(act_attendance)
         toolbar.addAction(act_reports)
+        toolbar.addAction(act_admin_report)
 
     def _delete_service(self):
         name, ok = QInputDialog.getText(self, "حذف خدمة", "اسم الخدمة:")

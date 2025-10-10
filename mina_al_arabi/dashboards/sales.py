@@ -222,10 +222,10 @@ class SalesDashboard(QWidget):
             # Decrease inventory
             self.db.update_product_qty(pid, -qty)
 
-        # If shop is buyer, record each item as expense with product name
+        # If shop is buyer, record as expense category "مشتريات للمحل" with product name in note
         if is_store:
             for _, name, price, qty in items:
-                self.db.add_expense(category=name, amount=price * qty, note=f"فاتورة رقم {sale_id}")
+                self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name)
 
         # Action: for customer -> print receipt, otherwise -> just register (no receipt)
         if is_customer:
