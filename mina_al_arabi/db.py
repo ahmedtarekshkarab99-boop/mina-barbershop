@@ -65,6 +65,7 @@ class Database:
                 discount_percent INTEGER NOT NULL DEFAULT 0,
                 type TEXT NOT NULL, -- 'service' or 'product'
                 buyer_type TEXT NOT NULL DEFAULT 'customer',
+                cleared INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(employee_id) REFERENCES employees(id)
             )
             """)
@@ -111,12 +112,21 @@ class Database:
                 date TEXT NOT NULL,
                 amount REAL NOT NULL,
                 note TEXT,
+                cleared INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(employee_id) REFERENCES employees(id)
             )
             """)
-            # Migrations: add buyer_type to existing sales if missing
+            # Migrations
             try:
                 c.execute("ALTER TABLE sales ADD COLUMN buyer_type TEXT NOT NULL DEFAULT 'customer'")
+            except Exception:
+                pass
+            try:
+                c.execute("ALTER TABLE sales ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                c.execute("ALTER TABLE loans ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
             except Exception:
                 pass
 
@@ -237,13 +247,13 @@ class Database:
             return c.fetchall()
 
     def list_sales_by_employee_on_date(self, employee_id: int, date_str: str) -> List[Dict[str, Any]]:
-        """Return sales (both services and products) by an employee on a specific YYYY-MM-DD date."""
+        """Return sales (both services and products) by an employee on a specific YYYY-MM-DD date, excluding cleared entries."""
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
             SELECT id, date, total, discount_percent, type, is_shop, buyer_type
             FROM sales
-            WHERE employee_id = ? AND substr(date,1,10) = ?
+            WHERE employee_id = ? AND substr(date,1,10) = ? AND cleared = 0
             ORDER BY date ASC
             """, (employee_id, date_str))
             rows = c.fetchall()
@@ -265,7 +275,7 @@ class Database:
             c.execute("""
             SELECT id, date, total, discount_percent, type, is_shop, buyer_type
             FROM sales
-            WHERE employee_id = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            WHERE employee_id = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ? AND cleared = 0
             ORDER BY date ASC
             """, (employee_id, str(year), f"{month:02d}"))
             rows = c.fetchall()
@@ -355,8 +365,9 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            SELECT id, date, amount, note FROM loans
-            WHERE employee_id = ? AND substr(date,1,10) = ?
+            SELECT id, date, amount, note
+            FROM loans
+            WHERE employee_id = ? AND substr(date,1,10) = ? AND cleared = 0
             ORDER BY date ASC
             """, (employee_id, date_str))
             return c.fetchall()
@@ -366,7 +377,7 @@ class Database:
             c = conn.cursor()
             c.execute("""
             SELECT id, date, amount, note FROM loans
-            WHERE employee_id = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            WHERE employee_id = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ? AND cleared = 0
             ORDER BY date ASC
             """, (employee_id, str(year), f"{month:02d}"))
             return c.fetchall()
