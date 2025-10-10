@@ -386,15 +386,16 @@ class Database:
 
     # Account clearing helpers
     def delete_sales_and_items_by_employee(self, employee_id: int):
+        """Clear only employee deductions (sales where buyer_type='employee'), not service revenue."""
         with self.connect() as conn:
             c = conn.cursor()
-            # Find all sales ids for employee
-            c.execute("SELECT id FROM sales WHERE employee_id = ?", (employee_id,))
+            # Find all sales ids for this employee where the employee is the buyer (deductions)
+            c.execute("SELECT id FROM sales WHERE employee_id = ? AND buyer_type = 'employee'", (employee_id,))
             sale_ids = [row[0] for row in c.fetchall()]
             if sale_ids:
-                # Delete sale_items for those sales
+                # Delete sale_items tied to those sales
                 c.executemany("DELETE FROM sale_items WHERE sale_id = ?", [(sid,) for sid in sale_ids])
-                # Delete the sales
+                # Delete those sales
                 c.executemany("DELETE FROM sales WHERE id = ?", [(sid,) for sid in sale_ids])
             conn.commit()
 
