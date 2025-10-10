@@ -91,11 +91,12 @@ class AdminReportDashboard(QWidget):
 
         # Totals
         total_services = self.db.sum_services_in_month(year, month)
-        total_shop_expenses = self.db.sum_expenses_category_in_month("مشتريات للمحل", year, month)
+        # Show "أخرى" expenses total per request (do not delete on account clearing)
+        total_other_expenses = self.db.sum_expenses_category_in_month("أخرى", year, month)
 
         self.summary_label.setText(
             f"إجمالي الخدمات (الشهر): {format_amount(total_services)} ج.م | "
-            f"إجمالي مصاريف مشتريات المحل: {format_amount(total_shop_expenses)} ج.م"
+            f"إجمالي المصاريف (أخرى): {format_amount(total_other_expenses)} ج.م"
         )
 
         # Shop purchases list

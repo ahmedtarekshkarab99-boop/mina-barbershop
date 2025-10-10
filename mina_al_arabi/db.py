@@ -386,10 +386,12 @@ class Database:
 
     # Account clearing helpers
     def delete_sales_and_items_by_employee(self, employee_id: int):
+        """Delete only employee-account transactions (buyer_type='employee') for the given employee.
+        This preserves service invoices and other sales that contribute to monthly service totals."""
         with self.connect() as conn:
             c = conn.cursor()
-            # Find all sales ids for employee
-            c.execute("SELECT id FROM sales WHERE employee_id = ?", (employee_id,))
+            # Find all sales ids for employee where buyer_type is 'employee'
+            c.execute("SELECT id FROM sales WHERE employee_id = ? AND buyer_type = 'employee'", (employee_id,))
             sale_ids = [row[0] for row in c.fetchall()]
             if sale_ids:
                 # Delete sale_items for those sales
