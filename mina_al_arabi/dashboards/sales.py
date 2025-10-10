@@ -237,25 +237,73 @@ class SalesDashboard(QWidget):
         if is_customer:
             ts = datetime.now()
             arabic_time = format_time_ar(ts)
-            path = os.path.join(RECEIPTS_DIR, f"receipt_product_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
-            lines = []
-            lines.append("صالون مينا العربي")
-            lines.append(f"التاريخ: {ts.strftime('%Y-%m-%d')} {arabic_time}")
-            lines.append(f"المشتري: {customer_name if customer_name else 'غير محدد'}")
-            lines.append("-" * 30)
+            basename = f"receipt_product_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}"
+            txt_path = os.path.join(RECEIPTS_DIR, f"{basename}.txt")
+            html_path = os.path.join(RECEIPTS_DIR, f"{basename}.html")
+
+            # Build professional, large HTML receipt (RTL)
+            rows_html = ""
+            for _, name, price, qty in items:
+                rows_html += f"<tr><td>{name}</td><td>{qty}</td><td>{format_amount(price)}</td><td>{format_amount(price * qty)}</td></tr>"
+
+            receipt_html = f"""<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>إيصال</title>
+<style>
+  body {{ font-family: 'Cairo', sans-serif; color: #000; margin: 24px; }}
+  .brand {{ font-size: 28px; font-weight: 700; text-align: center; }}
+  .meta {{ font-size: 16px; margin-top: 6px; text-align: center; }}
+  .separator {{ margin: 12px 0; border-top: 2px solid #000; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 16px; }}
+  th, td {{ border: 1px solid #000; padding: 8px; }}
+  th {{ background: #f0f0f0; }}
+  .total {{ font-size: 20px; font-weight: 700; text-align: left; margin-top: 12px; }}
+  .footer {{ margin-top: 16px; font-size: 14px; text-align: center; color: #444; }}
+</style>
+</head>
+<body>
+  <div class="brand">صالون مينا العربي</div>
+  <div class="meta">التاريخ: {ts.strftime('%Y-%m-%d')} {arabic_time}</div>
+  <div class="meta">المشتري: {customer_name if customer_name else 'غير محدد'}</div>
+  <div class="separator"></div>
+  <table>
+    <thead>
+      <tr><th>المنتج</th><th>الكمية</th><th>سعر الوحدة (ج.م)</th><th>الإجمالي (ج.م)</th></tr>
+    </thead>
+    <tbody>
+      {rows_html}
+    </tbody>
+  </table>
+  <div class="total">الإجمالي: {format_amount(total)} ج.م</div>
+  <div class="footer">شكراً لزيارتكم</div>
+</body>
+</html>"""
+
+            # Also keep a plain text alongside
+            lines = [
+                "صالون مينا العربي",
+                f"التاريخ: {ts.strftime('%Y-%m-%d')} {arabic_time}",
+                f"المشتري: {customer_name if customer_name else 'غير محدد'}",
+                "-" * 30
+            ]
             for _, name, price, qty in items:
                 lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-            lines.append("-" * 30)
-            lines.append(f"الإجمالي: {format_amount(total)} ج.م")
+            lines += ["-" * 30, f"الإجمالي: {format_amount(total)} ج.م"]
             receipt_text = "\n".join(lines)
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(receipt_text)
-            # Try to print directly to thermal printer (Xprinter if available, else default)
+
+            with open(txt_path, "w", encoding="utf-8") as ftxt:
+                ftxt.write(receipt_text)
+            with open(html_path, "w", encoding="utf-8") as fhtml:
+                fhtml.write(receipt_html)
+
+            # Try to print the HTML (larger professional format)
             try:
-                self._print_receipt(receipt_text)
-                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{path}")
+                self._print_receipt_html(receipt_html)
+                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
             except Exception as e:
-                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال ولكن فشلت الطباعة:\n{e}\nالمسار:\n{path}")
+                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\nالمسار:\n{html_path}")
         else:
             QMessageBox.information(self, "تم", "تم تسجيل الفاتورة بنجاح.")
 
@@ -266,7 +314,30 @@ class SalesDashboard(QWidget):
         self._update_total()
         self.load_products()
 
-    def _print_receipt(self, text: str):
+    def _print_receipt_html(self, html: str):
+        # Select Xprinter if available, otherwise use default printer
+        printer_info = None
+        for p in QPrinterInfo.availablePrinters():
+            if "xprinter" in p.printerName().lower():
+                printer_info = p
+                break
+        if printer_info is None:
+            # fallback to default printer
+            try:
+                printer_info = QPrinterInfo.defaultPrinter()
+            except Exception:
+                printer_info = None
+
+        printer = QPrinter()
+        if printer_info is not None:
+            printer.setPrinterName(printer_info.printerName())
+        # Use higher resolution for larger, clearer print
+        printer.setResolution(300)
+        # Render HTML with big fonts and RTL
+        doc = QTextDocument()
+        doc.setDefaultFont(QFont("Cairo", 14))
+        doc.setHtml(html)
+        doc.print_(printer)
         # Select Xprinter if available, otherwise use default printer
         printer_info = None
         for p in QPrinterInfo.availablePrinters():
