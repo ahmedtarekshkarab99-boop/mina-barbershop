@@ -170,15 +170,26 @@ class MainWindow(QMainWindow):
         if ok and name:
             # Save
             try:
-                with open(cfg:
+                with open(cfg_path, "w", encoding="utf-8") as f:
+                    f.write(name)
+            except Exception:
+                pass
+            # Update sales tab live if present
+            try:
+                self.sales_tab._selected_printer = name
+            except Exception:
+                pass
+            QMessageBox.information(self, "تم", f"تم اختيار الطابعة:\n{name}")
+
+    def _build_sidebar(self):
         toolbar = QToolBar("التنقل")
         toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, toolbar)
         # Actions to switch tabs
         act_cashier = QAction("الكاشير", self)
         act_inventory = QAction("المخزن", self)
-        act_expenses = QAction("المصاريف", self)
         act_sales = QAction("المبيعات", self)
+        act_expenses = QAction("المصاريف", self)
         act_attendance = QAction("الحضور", self)
         act_reports = QAction("التقارير", self)
         act_admin_report = QAction("تقرير إداري", self)
