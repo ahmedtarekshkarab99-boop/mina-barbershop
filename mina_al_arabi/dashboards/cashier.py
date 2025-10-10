@@ -364,8 +364,17 @@ class CashierDashboard(QWidget):
         # High resolution for clarity
         printer.setResolution(300)
 
+        # Safety: avoid PDF/XPS/virtual printers that save to files
+        try:
+            pname = printer_info.printerName() if printer_info else ""
+        except Exception:
+            pname = ""
+        low = pname.lower()
+        if (not pname) or any(bad in low for bad in ["pdf", "xps", "virtual"]):
+            raise Exception(f"تم اختيار طابعة غير مناسبة للطباعة الحرارية: {pname}. من فضلك اختر طابعة Xprinter من إدارة > اختيار الطابعة.")
+
         # Render HTML with big fonts and force a wider page (approx 80mm roll)
         doc = QTextDocument()
         doc.setDefaultFont(QFont("Cairo", 16))
         doc.setHtml(html)
-        # 80mm ≈ 3.15in; at 300 dpi()
+        # 80mm ≈ 3.15in; at 300 dpi => ~945 px width
