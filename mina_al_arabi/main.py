@@ -6,9 +6,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtCore import Qt
-from mina_al_arabi.db import Database, DB_PATH
+from PySide6.QtPrintSupport import QPrinterInfo
+from mina_al_arabi.db import Database, DB_PATH, DATA_DIR
 from mina_al_arabi.dashboards.cashier import CashierDashboard
 from mina_al_arabi.dashboards.inventory import InventoryDashboard
+from mina_al_arabi.dashboards.sales import SalesDashboard
 from mina_al_arabi.dashboards.expenses import ExpensesDashboard
 from mina_al_arabi.dashboards.attendance import AttendanceDashboard
 from mina_al_arabi.dashboards.reports import ReportsDashboard
@@ -31,6 +33,7 @@ class MainWindow(QMainWindow):
 
         self.cashier_tab = CashierDashboard(self.db)
         self.inventory_tab = InventoryDashboard(self.db)
+        self.sales_tab = SalesDashboard(self.db)
         self.expenses_tab = ExpensesDashboard(self.db)
         self.attendance_tab = AttendanceDashboard(self.db)
         self.reports_tab = ReportsDashboard(self.db)
@@ -38,6 +41,7 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self.cashier_tab, "الكاشير (الخدمات)")
         self.tabs.addTab(self.inventory_tab, "المخزن")
+        self.tabs.addTab(self.sales_tab, "المبيعات")
         self.tabs.addTab(self.expenses_tab, "المصاريف")
         self.tabs.addTab(self.attendance_tab, "الحضور")
         self.tabs.addTab(self.reports_tab, "التقارير")
@@ -86,6 +90,10 @@ class MainWindow(QMainWindow):
         manage_menu.addAction(edit_service_price_action)
 
         manage_menu.addSeparator()
+
+        choose_printer_action = QAction("اختيار الطابعة", self)
+        choose_printer_action.triggered.connect(self._choose_printer)
+        manage_menu.addAction(choose_printer_action)
 
         update_action = QAction("تحديث البرنامج", self)
         update_action.triggered.connect(self._refresh_all)
@@ -143,7 +151,26 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "خطأ", f"فشل استعادة النسخة الاحتياطية:\n{e}")
 
-    def _build_sidebar(self):
+    def _choose_printer(self):
+        printers = [p.printerName() for p in QPrinterInfo.availablePrinters()]
+        if not printers:
+            QMessageBox.warning(self, "تنبيه", "لا يوجد طابعات متاحة على النظام.")
+            return
+        # Read current saved printer if exists
+        cfg_path = os.path.join(DATA_DIR, "printer.txt")
+        current_name = ""
+        try:
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    current_name = f.read().strip()
+        except Exception:
+            current_name = ""
+        # Show selection dialog
+        name, ok = QInputDialog.getItem(self, "اختيار الطابعة", "اختر الطابعة:", printers, printers.index(current_name) if current_name in printers else 0, False)
+        if ok and name:
+            # Save
+            try:
+                with open(cfg:
         toolbar = QToolBar("التنقل")
         toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, toolbar)
@@ -151,6 +178,7 @@ class MainWindow(QMainWindow):
         act_cashier = QAction("الكاشير", self)
         act_inventory = QAction("المخزن", self)
         act_expenses = QAction("المصاريف", self)
+        act_sales = QAction("المبيعات", self)
         act_attendance = QAction("الحضور", self)
         act_reports = QAction("التقارير", self)
         act_admin_report = QAction("تقرير إداري", self)
@@ -158,6 +186,7 @@ class MainWindow(QMainWindow):
         # Connect actions
         act_cashier.triggered.connect(lambda: self.tabs.setCurrentWidget(self.cashier_tab))
         act_inventory.triggered.connect(lambda: self.tabs.setCurrentWidget(self.inventory_tab))
+        act_sales.triggered.connect(lambda: self.tabs.setCurrentWidget(self.sales_tab))
         act_expenses.triggered.connect(lambda: self.tabs.setCurrentWidget(self.expenses_tab))
         act_attendance.triggered.connect(lambda: self.tabs.setCurrentWidget(self.attendance_tab))
         act_reports.triggered.connect(lambda: self.tabs.setCurrentWidget(self.reports_tab))
@@ -165,6 +194,7 @@ class MainWindow(QMainWindow):
 
         toolbar.addAction(act_cashier)
         toolbar.addAction(act_inventory)
+        toolbar.addAction(act_sales)
         toolbar.addAction(act_expenses)
         toolbar.addAction(act_attendance)
         toolbar.addAction(act_reports)
@@ -207,6 +237,11 @@ class MainWindow(QMainWindow):
             pass
         try:
             self.inventory_tab.load_products()
+        except Exception:
+            pass
+        try:
+            self.sales_tab._load_employees()
+            self.sales_tab.load_products()
         except Exception:
             pass
         try:
