@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self.expenses_tab = ExpensesDashboard(self.db)
         self.attendance_tab = AttendanceDashboard(self.db)
         self.reports_tab = ReportsDashboard(self.db)
+        self.admin_report_tab = AdminReportDashboard(self.db)
 
         self.tabs.addTab(self.cashier_tab, "الكاشير (الخدمات)")
         self.tabs.addTab(self.inventory_tab, "المخزن")
@@ -182,7 +183,6 @@ class MainWindow(QMainWindow):
             self.db.delete_employee_by_name(name.strip())
             QMessageBox.information(self, "تم", "تم حذف الموظف")
             self.cashier_tab._load_employees()
-            self.sales_tab._load_employees()
 
     def _edit_service_price(self):
         name, ok = QInputDialog.getText(self, "تعديل سعر خدمة", "اسم الخدمة:")
