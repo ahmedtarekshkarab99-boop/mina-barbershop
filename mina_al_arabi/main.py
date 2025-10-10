@@ -1,10 +1,12 @@
 import sys
+import os
+import shutil
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTabWidget, QMessageBox, QMenuBar, QMenu, QInputDialog, QToolBar
+    QApplication, QMainWindow, QTabWidget, QMessageBox, QMenuBar, QMenu, QInputDialog, QToolBar, QFileDialog
 )
 from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtCore import Qt
-from mina_al_arabi.db import Database
+from mina_al_arabi.db import Database, DB_PATH
 from mina_al_arabi.dashboards.cashier import CashierDashboard
 from mina_al_arabi.dashboards.inventory import InventoryDashboard
 from mina_al_arabi.dashboards.sales import SalesDashboard
@@ -125,6 +127,23 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "تم", f"تم حفظ النسخة الاحتياطية:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "خطأ", f"حدث خطأ أثناء النسخ الاحتياطي:\n{e}")
+
+    def _restore_db(self):
+        # Let user pick a backup .db file and restore it as the active database
+        file_path, _ = QFileDialog.getOpenFileName(self, "اختر ملف النسخة الاحتياطية", "", "SQLite DB (*.db);;All Files (*)")
+        if not file_path:
+            return
+        confirm = QMessageBox.question(self, "تأكيد الاستعادة", "سيتم استبدال قاعدة البيانات الحالية بالنسخة المحددة.\nهل تريد المتابعة؟")
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            # Close any open resources by ensuring no long-lived connections; Database uses short-lived connections.
+            shutil.copyfile(file_path, DB_PATH)
+            QMessageBox.information(self, "تم", "تم استعادة النسخة الاحتياطية بنجاح.")
+            # Refresh UI data
+            self._refresh_all()
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ", f"فشل استعادة النسخة الاحتياطية:\n{e}")
 
     def _build_sidebar(self):
         toolbar = QToolBar("التنقل")
