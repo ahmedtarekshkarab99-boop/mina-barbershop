@@ -52,6 +52,8 @@ class SalesDashboard(QWidget):
         self.products_grid = QGridLayout(self.products_container)
         self.products_grid.setSpacing(12)
         self.products_area.setWidget(self.products_container)
+        # Give products area a bit more prominence
+        self.products_area.setMinimumHeight(500)
         left.addWidget(self.products_area)
 
         # Right: Invoice area
@@ -111,8 +113,10 @@ class SalesDashboard(QWidget):
         self.submit_btn.clicked.connect(self._submit_invoice)
         right.addWidget(self.submit_btn)
 
-        root.addLayout(left, 2)
+        # Increase products section width relative to invoice
+        root.addLayout(left, 3)
         root.addLayout(right, 1)
+1)
 
         self._load_employees()
         self._update_buyer_fields()
@@ -148,7 +152,8 @@ class SalesDashboard(QWidget):
         for pid, name, price, qty in self.db.list_products():
             label_text = f"{name}\n{format_amount(price)} ج.م\nالمتوفر: {qty}"
             btn = QPushButton(label_text)
-            btn.setMinimumSize(220, 160)
+            # Make product buttons a bit larger
+            btn.setMinimumSize(260, 180)
             btn.setStyleSheet("QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; font-size: 16px; } QPushButton:hover { background-color: #B8962D; }")
             btn.clicked.connect(lambda _, p=pid, n=name, pr=price, q=qty: self.add_product_to_invoice(p, n, pr, q))
             self.products_grid.addWidget(btn, row, col)
@@ -222,10 +227,10 @@ class SalesDashboard(QWidget):
             # Decrease inventory
             self.db.update_product_qty(pid, -qty)
 
-        # If shop is buyer, record each item as expense with product name
+        # If shop is buyer, record as expense category "مشتريات للمحل" with product name in note
         if is_store:
             for _, name, price, qty in items:
-                self.db.add_expense(category=name, amount=price * qty, note=f"فاتورة رقم {sale_id}")
+                self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name)
 
         # Action: for customer -> print receipt, otherwise -> just register (no receipt)
         if is_customer:

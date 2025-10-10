@@ -12,6 +12,7 @@ hiddenimports += [
     'mina_al_arabi.dashboards.sales',
     'mina_al_arabi.dashboards.expenses',
     'mina_al_arabi.dashboards.reports',
+    'mina_al_arabi.dashboards.admin_report',
 ]
 
 block_cipher = None

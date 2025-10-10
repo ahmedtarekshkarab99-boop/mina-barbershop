@@ -375,14 +375,14 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            SELECT a.date, e.name, a.check_in, a.check_out
+            SELECT a.date, e.name, a.check_in, a.check_out, a.employee_id
             FROM attendance a
             JOIN employees e ON e.id = a.employee_id
             WHERE substr(a.date,1,4) = ? AND substr(a.date,6,2) = ?
             ORDER BY a.date DESC
             """, (str(year), f"{month:02d}"))
             rows = c.fetchall()
-            return [{"date": r[0], "employee": r[1], "check_in": r[2], "check_out": r[3]} for r in rows]
+            return [{"date": r[0], "employee": r[1], "check_in": r[2], "check_out": r[3], "employee_id": r[4]} for r in rows]
 
     # Account clearing helpers
     def delete_sales_and_items_by_employee(self, employee_id: int):
@@ -402,4 +402,63 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("DELETE FROM loans WHERE employee_id = ?", (employee_id,))
+            conn.commit()
+
+    # Admin report helpers
+    def sum_services_in_month(self, year: int, month: int) -> float:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT COALESCE(SUM(total), 0)
+            FROM sales
+            WHERE type = 'service' AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            """, (str(year), f"{month:02d}"))
+            val = c.fetchone()[0]
+            return float(val or 0)
+
+    def sum_expenses_category_in_month(self, category: str, year: int, month: int) -> float:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT COALESCE(SUM(amount), 0)
+            FROM expenses
+            WHERE category = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            """, (category, str(year), f"{month:02d}"))
+            val = c.fetchone()[0]
+            return float(val or 0)
+
+    def list_shop_purchases_in_month(self, year: int, month: int):
+        """Return rows of (date, item_name, unit_price, qty) for shop buyer product sales."""
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT s.date, si.item_name, si.unit_price, si.quantity
+            FROM sales s
+            JOIN sale_items si ON si.sale_id = s.id
+            WHERE s.type = 'product' AND s.buyer_type = 'shop'
+              AND substr(s.date,1,4) = ? AND substr(s.date,6,2) = ?
+            ORDER BY s.date ASC
+            """, (str(year), f"{month:02d}"))
+            return c.fetchall()
+
+    def delete_shop_data_in_month(self, year: int, month: int):
+        """Delete shop buyer product sales and 'مشتريات للمحل' expenses for the month."""
+        with self.connect() as conn:
+            c = conn.cursor()
+            # Delete expenses for shop purchases
+            c.execute("""
+            DELETE FROM expenses
+            WHERE category = 'مشتريات للمحل' AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            """, (str(year), f"{month:02d}"))
+
+            # Find sales ids for shop buyer product sales
+            c.execute("""
+            SELECT id FROM sales
+            WHERE type = 'product' AND buyer_type = 'shop'
+              AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            """, (str(year), f"{month:02d}"))
+            sale_ids = [row[0] for row in c.fetchall()]
+            if sale_ids:
+                c.executemany("DELETE FROM sale_items WHERE sale_id = ?", [(sid,) for sid in sale_ids])
+                c.executemany("DELETE FROM sales WHERE id = ?", [(sid,) for sid in sale_ids])
             conn.commit()
