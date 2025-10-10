@@ -8,7 +8,6 @@ from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtCore import Qt
 from PySide6.QtPrintSupport import QPrinterInfo
 from mina_al_arabi.db import Database, DB_PATH, DATA_DIR
-from mina_al_arabi.dashboards.cashier import CashierDashboard
 from mina_al_arabi.dashboards.inventory import InventoryDashboard
 from mina_al_arabi.dashboards.expenses import ExpensesDashboard
 from mina_al_arabi.dashboards.attendance import AttendanceDashboard
@@ -30,14 +29,12 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        self.cashier_tab = CashierDashboard(self.db)
         self.inventory_tab = InventoryDashboard(self.db)
         self.expenses_tab = ExpensesDashboard(self.db)
         self.attendance_tab = AttendanceDashboard(self.db)
         self.reports_tab = ReportsDashboard(self.db)
         self.admin_report_tab = AdminReportDashboard(self.db)
 
-        self.tabs.addTab(self.cashier_tab, "الكاشير (الخدمات)")
         self.tabs.addTab(self.inventory_tab, "المخزن")
         self.tabs.addTab(self.expenses_tab, "المصاريف")
         self.tabs.addTab(self.attendance_tab, "الحضور")
@@ -60,13 +57,15 @@ class MainWindow(QMainWindow):
         manage_menu = QMenu("إدارة", self)
         menubar.addMenu(manage_menu)
 
-        add_service_action = QAction("إضافة خدمة", self)
-        add_service_action.triggered.connect(self.cashier_tab.open_add_service_dialog)
-        manage_menu.addAction(add_service_action)
+        # إضافة خدمة/موظف متاحة فقط عند وجود شاشة الكاشير
+        # تم تعطيلها مؤقتاً لتجنب الخطأ
+        # add_service_action = QAction("إضافة خدمة", self)
+        # add_service_action.triggered.connect(self.cashier_tab.open_add_service_dialog)
+        # manage_menu.addAction(add_service_action)
 
-        add_employee_action = QAction("إضافة موظف", self)
-        add_employee_action.triggered.connect(self.cashier_tab.open_add_employee_dialog)
-        manage_menu.addAction(add_employee_action)
+        # add_employee_action = QAction("إضافة موظف", self)
+        # add_employee_action.triggered.connect(self.cashier_tab.open_add_employee_dialog)
+        # manage_menu.addAction(add_employee_action)
 
         backup_action = QAction("نسخ احتياطي للبيانات", self)
         backup_action.triggered.connect(self._backup_db)
@@ -183,7 +182,6 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, toolbar)
         # Actions to switch tabs
-        act_cashier = QAction("الكاشير", self)
         act_inventory = QAction("المخزن", self)
         act_expenses = QAction("المصاريف", self)
         act_attendance = QAction("الحضور", self)
@@ -191,14 +189,12 @@ class MainWindow(QMainWindow):
         act_admin_report = QAction("تقرير إداري", self)
 
         # Connect actions
-        act_cashier.triggered.connect(lambda: self.tabs.setCurrentWidget(self.cashier_tab))
         act_inventory.triggered.connect(lambda: self.tabs.setCurrentWidget(self.inventory_tab))
         act_expenses.triggered.connect(lambda: self.tabs.setCurrentWidget(self.expenses_tab))
         act_attendance.triggered.connect(lambda: self.tabs.setCurrentWidget(self.attendance_tab))
         act_reports.triggered.connect(lambda: self.tabs.setCurrentWidget(self.reports_tab))
         act_admin_report.triggered.connect(lambda: self.tabs.setCurrentWidget(self.admin_report_tab))
 
-        toolbar.addAction(act_cashier)
         toolbar.addAction(act_inventory)
         toolbar.addAction(act_expenses)
         toolbar.addAction(act_attendance)
@@ -210,14 +206,20 @@ class MainWindow(QMainWindow):
         if ok and name.strip():
             self.db.delete_service_by_name(name.strip())
             QMessageBox.information(self, "تم", "تم حذف الخدمة")
-            self.cashier_tab._load_services()
+            try:
+                self.cashier_tab._load_services()
+            except Exception:
+                pass
 
     def _delete_employee(self):
         name, ok = QInputDialog.getText(self, "حذف موظف", "اسم الموظف:")
         if ok and name.strip():
             self.db.delete_employee_by_name(name.strip())
             QMessageBox.information(self, "تم", "تم حذف الموظف")
-            self.cashier_tab._load_employees()
+            try:
+                self.cashier_tab._load_employees()
+            except Exception:
+                pass
 
     def _edit_service_price(self):
         name, ok = QInputDialog.getText(self, "تعديل سعر خدمة", "اسم الخدمة:")
@@ -229,7 +231,10 @@ class MainWindow(QMainWindow):
                 new_price = float(price_text.strip())
                 self.db.update_service_price(name.strip(), new_price)
                 QMessageBox.information(self, "تم", "تم تعديل السعر")
-                self.cashier_tab._load_services()
+                try:
+                    self.cashier_tab._load_services()
+                except Exception:
+                    pass
             except ValueError:
                 QMessageBox.warning(self, "خطأ", "من فضلك أدخل رقمًا صحيحًا للسعر")
 
