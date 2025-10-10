@@ -188,8 +188,7 @@ class MainWindow(QMainWindow):
         # Actions to switch tabs
         act_cashier = QAction("الكاشير", self)
         act_inventory = QAction("المخزن", self)
-        act_sales = QAction("المبيعات", self)
-        act_expenses = QAction("المصاريف", self)
+        act_expenses = QAction("المصاريف", s_code     act_expenses = QAction("المصاريف", self)
         act_attendance = QAction("الحضور", self)
         act_reports = QAction("التقارير", self)
         act_admin_report = QAction("تقرير إداري", self)
