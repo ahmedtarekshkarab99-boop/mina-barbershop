@@ -8,7 +8,9 @@ from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtCore import Qt
 from PySide6.QtPrintSupport import QPrinterInfo
 from mina_al_arabi.db import Database, DB_PATH, DATA_DIR
+from mina_al_arabi.dashboards.cashier import CashierDashboard
 from mina_al_arabi.dashboards.inventory import InventoryDashboard
+from mina_al_arabi.dashboards.sales import SalesDashboard
 from mina_al_arabi.dashboards.expenses import ExpensesDashboard
 from mina_al_arabi.dashboards.attendance import AttendanceDashboard
 from mina_al_arabi.dashboards.reports import ReportsDashboard
