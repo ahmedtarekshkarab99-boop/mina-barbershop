@@ -398,8 +398,3 @@ class SalesDashboard(QWidget):
         # 80mm ≈ 3.15in; at 300 dpi => ~945 px width
         doc.setPageSize(QSizeF(945, 10000))
         doc.print_(printer)
-        # Select Xprinter if available, otherwise use default printer
-        printer_info = None
-        for p in QPrinterInfo.availablePrinters():
-            if "xprinter" in p.printerName().lower():
-                printer()
