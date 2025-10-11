@@ -7,6 +7,7 @@ from PySide6.QtGui import QFont, QTextDocument
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from datetime import datetime
 from mina_al_arabi.db import Database, RECEIPTS_DIR, DATA_DIR
+from mina_al_arabi.printing import print_receipt
 import os
 
 
@@ -313,12 +314,17 @@ class SalesDashboard(QWidget):
             with open(html_path, "w", encoding="utf-8") as fhtml:
                 fhtml.write(receipt_html)
 
-            # Try to print the HTML (larger professional format)
+            # Try direct raw-print to default Windows printer (no dialog)
             try:
-                self._print_receipt_html(receipt_html)
+                print_receipt(receipt_text)
                 QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
-            except Exception as e:
-                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\nالمسار:\n{html_path}")
+            except Exception as e_raw:
+                # Fallback: print the HTML (larger professional format)
+                try:
+                    self._print_receipt_html(receipt_html)
+                    QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
+                except Exception as e_html:
+                    QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e_raw}\n{e_html}\nالمسار:\n{html_path}")
         else:
             QMessageBox.information(self, "تم", "تم تسجيل الفاتورة بنجاح.")
 
