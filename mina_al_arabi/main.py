@@ -8,7 +8,6 @@ from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtCore import Qt
 from PySide6.QtPrintSupport import QPrinterInfo
 from mina_al_arabi.db import Database, DB_PATH, DATA_DIR
-from mina_al_arabi.dashboards.cashier import CashierDashboard
 from mina_al_arabi.dashboards.inventory import InventoryDashboard
 from mina_al_arabi.dashboards.sales import SalesDashboard
 from mina_al_arabi.dashboards.expenses import ExpensesDashboard
@@ -31,7 +30,6 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        self.cashier_tab = CashierDashboard(self.db)
         self.inventory_tab = InventoryDashboard(self.db)
         self.sales_tab = SalesDashboard(self.db)
         self.expenses_tab = ExpensesDashboard(self.db)
@@ -39,7 +37,6 @@ class MainWindow(QMainWindow):
         self.reports_tab = ReportsDashboard(self.db)
         self.admin_report_tab = AdminReportDashboard(self.db)
 
-        self.tabs.addTab(self.cashier_tab, "الكاشير (الخدمات)")
         self.tabs.addTab(self.inventory_tab, "المخزن")
         self.tabs.addTab(self.sales_tab, "المبيعات")
         self.tabs.addTab(self.expenses_tab, "المصاريف")
@@ -63,13 +60,14 @@ class MainWindow(QMainWindow):
         manage_menu = QMenu("إدارة", self)
         menubar.addMenu(manage_menu)
 
-        add_service_action = QAction("إضافة خدمة", self)
-        add_service_action.triggered.connect(self.cashier_tab.open_add_service_dialog)
-        manage_menu.addAction(add_service_action)
+        # عناصر الكاشير معطلة مؤقتاً لتجنب الخطأ
+        # add_service_action = QAction("إضافة خدمة", self)
+        # add_service_action.triggered.connect(self.cashier_tab.open_add_service_dialog)
+        # manage_menu.addAction(add_service_action)
 
-        add_employee_action = QAction("إضافة موظف", self)
-        add_employee_action.triggered.connect(self.cashier_tab.open_add_employee_dialog)
-        manage_menu.addAction(add_employee_action)
+        # add_employee_action = QAction("إضافة موظف", self)
+        # add_employee_action.triggered.connect(self.cashier_tab.open_add_employee_dialog)
+        # manage_menu.addAction(add_employee_action)
 
         backup_action = QAction("نسخ احتياطي للبيانات", self)
         backup_action.triggered.connect(self._backup_db)
@@ -186,7 +184,6 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, toolbar)
         # Actions to switch tabs
-        act_cashier = QAction("الكاشير", self)
         act_inventory = QAction("المخزن", self)
         act_sales = QAction("المبيعات", self)
         act_expenses = QAction("المصاريف", self)
@@ -195,7 +192,6 @@ class MainWindow(QMainWindow):
         act_admin_report = QAction("تقرير إداري", self)
 
         # Connect actions
-        act_cashier.triggered.connect(lambda: self.tabs.setCurrentWidget(self.cashier_tab))
         act_inventory.triggered.connect(lambda: self.tabs.setCurrentWidget(self.inventory_tab))
         act_sales.triggered.connect(lambda: self.tabs.setCurrentWidget(self.sales_tab))
         act_expenses.triggered.connect(lambda: self.tabs.setCurrentWidget(self.expenses_tab))
@@ -203,7 +199,6 @@ class MainWindow(QMainWindow):
         act_reports.triggered.connect(lambda: self.tabs.setCurrentWidget(self.reports_tab))
         act_admin_report.triggered.connect(lambda: self.tabs.setCurrentWidget(self.admin_report_tab))
 
-        toolbar.addAction(act_cashier)
         toolbar.addAction(act_inventory)
         toolbar.addAction(act_sales)
         toolbar.addAction(act_expenses)
@@ -250,11 +245,6 @@ class MainWindow(QMainWindow):
 
     def _refresh_all(self):
         # Refresh data across the app
-        try:
-            self.cashier_tab._load_employees()
-            self.cashier_tab._load_services()
-        except Exception:
-            pass
         try:
             self.inventory_tab.load_products()
         except Exception:
