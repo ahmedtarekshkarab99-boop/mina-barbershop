@@ -10,6 +10,7 @@ from PySide6.QtPrintSupport import QPrinterInfo
 from mina_al_arabi.db import Database, DB_PATH, DATA_DIR
 from mina_al_arabi.dashboards.cashier import CashierDashboard
 from mina_al_arabi.dashboards.inventory import InventoryDashboard
+from mina_al_arabi.dashboards.sales import SalesDashboard
 from mina_al_arabi.dashboards.expenses import ExpensesDashboard
 from mina_al_arabi.dashboards.attendance import AttendanceDashboard
 from mina_al_arabi.dashboards.reports import ReportsDashboard
@@ -31,7 +32,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         self.cashier_tab = CashierDashboard(self.db)
+        self.cashier_tab = CashierDashboard(self.db)
         self.inventory_tab = InventoryDashboard(self.db)
+        self.sales_tab = SalesDashboard(self.db)
         self.expenses_tab = ExpensesDashboard(self.db)
         self.attendance_tab = AttendanceDashboard(self.db)
         self.reports_tab = ReportsDashboard(self.db)
@@ -39,6 +42,7 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self.cashier_tab, "الكاشير (الخدمات)")
         self.tabs.addTab(self.inventory_tab, "المخزن")
+        self.tabs.addTab(self.sales_tab, "المبيعات")
         self.tabs.addTab(self.expenses_tab, "المصاريف")
         self.tabs.addTab(self.attendance_tab, "الحضور")
         self.tabs.addTab(self.reports_tab, "التقارير")
