@@ -1,273 +1,52 @@
 import sys
-import os
-import shutil
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTabWidget, QMessageBox, QMenuBar, QMenu, QInputDialog, QToolBar, QFileDialog
-)
-from PySide6.QtGui import QAction, QFont, QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
+from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
-from PySide6.QtPrintSupport import QPrinterInfo
-from mina_al_arabi.db import Database, DB_PATH, DATA_DIR
-from mina_al_arabi.dashboards.inventory import InventoryDashboard
-from mina_al_arabi.dashboards.sales import SalesDashboard
-from mina_al_arabi.dashboards.expenses import ExpensesDashboard
-from mina_al_arabi.dashboards.attendance import AttendanceDashboard
-from mina_al_arabi.dashboards.reports import ReportsDashboard
-from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
-
-
-class MainWindow(QMainWindow):
-    def __init__(self, db: Database):
-        super().__init__()
-        self.db = db
-        self.setWindowTitle("مدير صالون مينا العربي")
-        self.resize(1200, 800)
-
-        # RTL
-        self.setLayoutDirection(Qt.RightToLeft)
-
-        # Tabs
-        self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
-
-        self.inventory_tab = InventoryDashboard(self.db)
-        self.sales_tab = SalesDashboard(self.db)
-        self.expenses_tab = ExpensesDashboard(self.db)
-        self.attendance_tab = AttendanceDashboard(self.db)
-        self.reports_tab = ReportsDashboard(self.db)
-        self.admin_report_tab = AdminReportDashboard(self.db)
-
-        self.tabs.addTab(self.inventory_tab, "المخزن")
-        self.tabs.addTab(self.sales_tab, "المبيعات")
-        self.tabs.addTab(self.expenses_tab, "المصاريف")
-        self.tabs.addTab(self.attendance_tab, "الحضور")
-        self.tabs.addTab(self.reports_tab, "التقارير")
-        self.tabs.addTab(self.admin_report_tab, "تقرير إداري")
-
-        # Menu
-        self._build_menu()
-
-        # Sidebar (left) with actions to switch tabs
-        self._build_sidebar()
-
-        # Dark premium theme stylesheet (black/gold/white)
-        self._apply_theme()
-
-    def _build_menu(self):
-        menubar = QMenuBar(self)
-        self.setMenuBar(menubar)
-
-        manage_menu = QMenu("إدارة", self)
-        menubar.addMenu(manage_menu)
-
-        # عناصر الكاشير غير متاحة مؤقتاً
-        # add_service_action = QAction("إضافة خدمة", self)
-        # add_service_action.triggered.connect(self.cashier_tab.open_add_service_dialog)
-        # manage_menu.addAction(add_service_action)
-
-        # add_employee_action = QAction("إضافة موظف", self)
-        # add_employee_action.triggered.connect(self.cashier_tab.open_add_employee_dialog)
-        # manage_menu.addAction(add_employee_action)
-
-        backup_action = QAction("نسخ احتياطي للبيانات", self)
-        backup_action.triggered.connect(self._backup_db)
-        manage_menu.addAction(backup_action)
-
-        manage_menu.addSeparator()
-
-        delete_service_action = QAction("حذف خدمة", self)
-        delete_service_action.triggered.connect(self._delete_service)
-        manage_menu.addAction(delete_service_action)
-
-        delete_employee_action = QAction("حذف موظف", self)
-        delete_employee_action.triggered.connect(self._delete_employee)
-        manage_menu.addAction(delete_employee_action)
-
-        edit_service_price_action = QAction("تعديل سعر خدمة", self)
-        edit_service_price_action.triggered.connect(self._edit_service_price)
-        manage_menu.addAction(edit_service_price_action)
-
-        manage_menu.addSeparator()
-
-        choose_printer_action = QAction("اختيار الطابعة", self)
-        choose_printer_action.triggered.connect(self._choose_printer)
-        manage_menu.addAction(choose_printer_action)
-
-        update_action = QAction("تحديث البرنامج", self)
-        update_action.triggered.connect(self._refresh_all)
-        manage_menu.addAction(update_action)
-
-    def _apply_theme(self):
-        # Set global font preference
-        try:
-            QApplication.instance().setFont(QFont("Cairo", 12))
-        except Exception:
-            QApplication.instance().setFont(QFont("", 12))
-        # Stylesheet with premium dark theme, sidebar, and translucent header
-        style = """
-        QWidget { background-color: #181818; color: #FFFFFF; }
-        QMainWindow { background-color: #121212; }
-        QTabWidget::pane { border: 1px solid #D4AF37; }
-        QTabBar::tab { background: #121212; color: #FFFFFF; padding: 8px 16px; border: 1px solid #D4AF37; border-bottom: none; border-top-left-radius: 6px; border-top-right-radius: 6px; }
-        QTabBar::tab:selected { background: #181818; }
-        QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; padding: 8px 14px; font-weight: 600; }
-        QPushButton:hover { background-color: #B8962D; }
-        QLabel { color: #FFFFFF; }
-        QMenuBar { background-color: rgba(212,175,55,0.2); color: #FFFFFF; }
-        QMenu { background-color: #121212; color: #FFFFFF; border: 1px solid #D4AF37; }
-        QLineEdit, QSpinBox, QComboBox { background-color: #121212; color: #FFFFFF; border: 1px solid #D4AF37; border-radius: 6px; padding: 6px; }
-        QCheckBox { color: #FFFFFF; }
-        QTableWidget { background-color: #181818; color: #FFFFFF; gridline-color: #D4AF37; }
-        QHeaderView::section { background-color: #121212; color: #FFFFFF; border: 1px solid #D4AF37; }
-        QToolBar { background-color: #121212; border-right: 1px solid #D4AF37; spacing: 8px; }
-        QToolButton { color: #FFFFFF; background-color: #121212; border: none; padding: 10px; border-radius: 6px; }
-        QToolButton:hover { background-color: #181818; color: #D4AF37; }
-        """
-        QApplication.instance().setStyleSheet(style)
-
-    def _backup_db(self):
-        try:
-            path = self.db.backup()
-            QMessageBox.information(self, "تم", f"تم حفظ النسخة الاحتياطية:\n{path}")
-        except Exception as e:
-            QMessageBox.critical(self, "خطأ", f"حدث خطأ أثناء النسخ الاحتياطي:\n{e}")
-
-    def _restore_db(self):
-        # Let user pick a backup .db file and restore it as the active database
-        file_path, _ = QFileDialog.getOpenFileName(self, "اختر ملف النسخة الاحتياطية", "", "SQLite DB (*.db);;All Files (*)")
-        if not file_path:
-            return
-        confirm = QMessageBox.question(self, "تأكيد الاستعادة", "سيتم استبدال قاعدة البيانات الحالية بالنسخة المحددة.\nهل تريد المتابعة؟")
-        if confirm != QMessageBox.Yes:
-            return
-        try:
-            # Close any open resources by ensuring no long-lived connections; Database uses short-lived connections.
-            shutil.copyfile(file_path, DB_PATH)
-            QMessageBox.information(self, "تم", "تم استعادة النسخة الاحتياطية بنجاح.")
-            # Refresh UI data
-            self._refresh_all()
-        except Exception as e:
-            QMessageBox.critical(self, "خطأ", f"فشل استعادة النسخة الاحتياطية:\n{e}")
-
-    def _choose_printer(self):
-        printers = [p.printerName() for p in QPrinterInfo.availablePrinters()]
-        if not printers:
-            QMessageBox.warning(self, "تنبيه", "لا يوجد طابعات متاحة على النظام.")
-            return
-        # Read current saved printer if exists
-        cfg_path = os.path.join(DATA_DIR, "printer.txt")
-        current_name = ""
-        try:
-            if os.path.exists(cfg_path):
-                with open(cfg_path, "r", encoding="utf-8") as f:
-                    current_name = f.read().strip()
-        except Exception:
-            current_name = ""
-        # Show selection dialog
-        name, ok = QInputDialog.getItem(self, "اختيار الطابعة", "اختر الطابعة:", printers, printers.index(current_name) if current_name in printers else 0, False)
-        if ok and name:
-            # Save
-            try:
-                with open(cfg_path, "w", encoding="utf-8") as f:
-                    f.write(name)
-            except Exception:
-                pass
-            # Update sales tab live if present
-            try:
-                self.sales_tab._selected_printer = name
-            except Exception:
-                pass
-            QMessageBox.information(self, "تم", f"تم اختيار الطابعة:\n{name}")
-
-    def _build_sidebar(self):
-        toolbar = QToolBar("التنقل")
-        toolbar.setMovable(False)
-        self.addToolBar(Qt.LeftToolBarArea, toolbar)
-        # Actions to switch tabs
-        act_cashier = QAction("الكاشير", self)
-        act_inventory = QAction("المخزن", self)
-        act_expenses = QAction("المصاريف", self)
-        act_attendance = QAction("الحضور", self)
-        act_reports = QAction("التقارير", self)
-        act_admin_report = QAction("تقرير إداري", self)
-
-        # Connect actions
-        act_cashier.triggered.connect(lambda: self.tabs.setCurrentWidget(self.cashier_tab))
-        act_inventory.triggered.connect(lambda: self.tabs.setCurrentWidget(self.inventory_tab))
-        act_expenses.triggered.connect(lambda: self.tabs.setCurrentWidget(self.expenses_tab))
-        act_attendance.triggered.connect(lambda: self.tabs.setCurrentWidget(self.attendance_tab))
-        act_reports.triggered.connect(lambda: self.tabs.setCurrentWidget(self.reports_tab))
-        act_admin_report.triggered.connect(lambda: self.tabs.setCurrentWidget(self.admin_report_tab))
-
-        toolbar.addAction(act_cashier)
-        toolbar.addAction(act_inventory)
-        toolbar.addAction(act_expenses)
-        toolbar.addAction(act_attendance)
-        toolbar.addAction(act_reports)
-        toolbar.addAction(act_admin_report)
-
-    def _delete_service(self):
-        name, ok = QInputDialog.getText(self, "حذف خدمة", "اسم الخدمة:")
-        if ok and name.strip():
-            self.db.delete_service_by_name(name.strip())
-            QMessageBox.information(self, "تم", "تم حذف الخدمة")
-            try:
-                self.cashier_tab._load_services()
-            except Exception:
-                pass
-
-    def _delete_employee(self):
-        name, ok = QInputDialog.getText(self, "حذف موظف", "اسم الموظف:")
-        if ok and name.strip():
-            self.db.delete_employee_by_name(name.strip())
-            QMessageBox.information(self, "تم", "تم حذف الموظف")
-            try:
-                self.cashier_tab._load_employees()
-            except Exception:
-                pass
-
-    def _edit_service_price(self):
-        name, ok = QInputDialog.getText(self, "تعديل سعر خدمة", "اسم الخدمة:")
-        if not (ok and name.strip()):
-            return
-        price_text, ok2 = QInputDialog.getText(self, "تعديل سعر خدمة", "السعر الجديد (ج.م):")
-        if ok2 and price_text.strip():
-            try:
-                new_price = float(price_text.strip())
-                self.db.update_service_price(name.strip(), new_price)
-                QMessageBox.information(self, "تم", "تم تعديل السعر")
-                try:
-                    self.cashier_tab._load_services()
-                except Exception:
-                    pass
-            except ValueError:
-                QMessageBox.warning(self, "خطأ", "من فضلك أدخل رقمًا صحيحًا للسعر")
-
-    def _refresh_all(self):
-        # Refresh data across the app
-        try:
-            self.inventory_tab.load_products()
-        except Exception:
-            pass
-        try:
-            self.cashier_tab._load_employees()
-            self.cashier_tab._load_services()
-        except Exception:
-            pass
-        try:
-            self.expenses_tab.load_expenses()
-        except Exception:
-            pass
-        
-        try:
-            self.reports_tab._load_employees()
-            self.reports_tab.refresh()
-        except Exception:
-            pass
-        QMessageBox.information(self, "تم", "تم تحديث البرنامج بنجاح")
 
 
 def main():
+    app = QApplication(sys.argv)
+    app.setLayoutDirection(Qt.RightToLeft)
+
+    # Build minimal app with Cashier and Sales tabs only (no DB)
+    from mina_al_arabi.dashboards.cashier import CashierDashboard
+    from mina_al_arabi.dashboards.sales import SalesDashboard
+
+    window = QMainWindow()
+    window.setWindowTitle("مدير صالون مينا العربي (نسخة مُعاد بناؤها)")
+    window.resize(1200, 800)
+    window.setLayoutDirection(Qt.RightToLeft)
+
+    tabs = QTabWidget()
+    window.setCentralWidget(tabs)
+
+    tabs.addTab(CashierDashboard(), "الكاشير (الخدمات)")
+    tabs.addTab(SalesDashboard(), "المبيعات")
+
+    # Apply theme
+    try:
+        QApplication.instance().setFont(QFont("Cairo", 12))
+    except Exception:
+        QApplication.instance().setFont(QFont("", 12))
+    style = """
+    QWidget { background-color: #181818; color: #FFFFFF; }
+    QMainWindow { background-color: #121212; }
+    QTabWidget::pane { border: 1px solid #D4AF37; }
+    QTabBar::tab { background: #121212; color: #FFFFFF; padding: 8px 16px; border: 1px solid #D4AF37; border-bottom: none; border-top-left-radius: 6px; border-top-right-radius: 6px; }
+    QTabBar::tab:selected { background: #181818; }
+    QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; padding: 8px 14px; font-weight: 600; }
+    QPushButton:hover { background-color: #B8962D; }
+    QLabel { color: #FFFFFF; }
+    QLineEdit, QSpinBox, QComboBox { background-color: #121212; color: #FFFFFF; border: 1px solid #D4AF37; border-radius: 6px; padding: 6px; }
+    """
+    QApplication.instance().setStyleSheet(style)
+
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main():
     app = QApplication(sys.argv)
     app.setLayoutDirection(Qt.RightToLeft)
 

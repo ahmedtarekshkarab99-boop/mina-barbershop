@@ -1,19 +1,25 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QListWidget,
-    QListWidgetItem, QMessageBox, QAbstractItemView, QScrollArea, QGridLayout, QComboBox, QRadioButton, QInputDialog
+    QListWidgetItem, QMessageBox, QAbstractItemView, QScrollArea, QGridLayout, QComboBox
 )
-from PySide6.QtCore import Qt, QSizeF
-from PySide6.QtGui import QFont, QTextDocument
-from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from datetime import datetime
-from mina_al_arabi.db import Database, RECEIPTS_DIR, DATA_DIR
-from mina_al_arabi.printing import print_receipt
 import os
+
+from mina_al_arabi.printing import print_receipt
 
 
 def format_amount(amount: float) -> str:
     # Show whole numbers only
     return f"{int(round(amount))}"
+
+
+def receipts_dir() -> str:
+    base = os.path.join(os.path.dirname(__file__), "..", "data", "receipts")
+    base = os.path.abspath(base)
+    os.makedirs(base, exist_ok=True)
+    return base
 
 
 def format_time_ar(dt: datetime) -> str:
@@ -25,9 +31,8 @@ def format_time_ar(dt: datetime) -> str:
 
 
 class SalesDashboard(QWidget):
-    def __init__(self, db: Database):
+    def __init__(self):
         super().__init__()
-        self.db = db
 
         self.header_font = QFont("Cairo", 18, QFont.Bold)
         self.body_font = QFont("Cairo", 14)
@@ -64,33 +69,12 @@ class SalesDashboard(QWidget):
         title_invoice.setFont(self.header_font)
         right.addWidget(title_invoice)
 
-        # Buyer selection - mutually exclusive
+        # Buyer: only customer for simplified build
         buyer_layout = QHBoxLayout()
-
-        self.customer_radio = QRadioButton("عميل")
-        self.customer_radio.setChecked(True)
-        self.store_radio = QRadioButton("المحل")
-        self.employee_radio = QRadioButton("موظف")
-
-        buyer_layout.addWidget(self.customer_radio)
-        buyer_layout.addWidget(self.store_radio)
-        buyer_layout.addWidget(self.employee_radio)
-
         buyer_layout.addWidget(QLabel("اسم العميل"))
         self.customer_input = QLineEdit()
         self.customer_input.setFont(self.body_font)
         buyer_layout.addWidget(self.customer_input)
-
-        buyer_layout.addWidget(QLabel("الموظف"))
-        self.employee_combo = QComboBox()
-        self.employee_combo.setFont(self.body_font)
-        buyer_layout.addWidget(self.employee_combo)
-
-        # Link radios to enabling/disabling fields
-        self.customer_radio.toggled.connect(self._update_buyer_fields)
-        self.store_radio.toggled.connect(self._update_buyer_fields)
-        self.employee_radio.toggled.connect(self._update_buyer_fields)
-
         right.addLayout(buyer_layout)
 
         self.invoice_list = QListWidget()
@@ -103,17 +87,6 @@ class SalesDashboard(QWidget):
         remove_btn.setFont(self.body_font)
         remove_btn.clicked.connect(self.remove_selected_invoice_item)
         action_row.addWidget(remove_btn)
-
-        choose_printer_btn = QPushButton("اختيار الطابعة")
-        choose_printer_btn.setFont(self.body_font)
-        choose_printer_btn.clicked.connect(self._choose_printer)
-        action_row.addWidget(choose_printer_btn)
-
-        test_print_btn = QPushButton("طباعة اختبار")
-        test_print_btn.setFont(self.body_font)
-        test_print_btn.clicked.connect(self._test_print)
-        action_row.addWidget(test_print_btn)
-
         right.addLayout(action_row)
 
         totals_layout = QHBoxLayout()
@@ -131,30 +104,16 @@ class SalesDashboard(QWidget):
         root.addLayout(left, 3)
         root.addLayout(right, 1)
 
-        # Printer config path
-        self._printer_cfg_path = os.path.join(DATA_DIR, "printer.txt")
-        self._selected_printer = self._load_saved_printer()
+        # Seed demo data
+        self.products = [("شامبو", 40, 20), ("جل شعر", 35, 30), ("بديل زيت", 25, 15), ("كريم", 50, 10)]
 
-        self._load_employees()
-        self._update_buyer_fields()
         self.load_products()
 
     def _update_buyer_fields(self):
-        # Only one active at a time: customer, store, employee
-        is_customer = self.customer_radio.isChecked()
-        is_store = self.store_radio.isChecked()
-        is_employee = self.employee_radio.isChecked()
+        # Simplified: only customer name used
+        self.submit_btn.setText("طباعة إيصال")
 
-        self.customer_input.setEnabled(is_customer)
-        self.employee_combo.setEnabled(is_employee)
-
-        # Button text: print receipt for customer, register invoice for store/employee
-        self.submit_btn.setText("طباعة إيصال" if is_customer else "تسجيل الفاتورة")
-
-    def _load_employees(self):
-        self.employee_combo.clear()
-        for eid, name in self.db.list_employees():
-            self.employee_combo.addItem(name, eid)
+    
 
     def load_products(self):
         # Clear grid
@@ -166,25 +125,24 @@ class SalesDashboard(QWidget):
                 w.setParent(None)
         # Add product buttons
         row, col = 0, 0
-        for pid, name, price, qty in self.db.list_products():
+        for name, price, qty in self.products:
             label_text = f"{name}\n{format_amount(price)} ج.م\nالمتوفر: {qty}"
             btn = QPushButton(label_text)
-            # Make product buttons a bit larger
             btn.setMinimumSize(260, 180)
             btn.setStyleSheet("QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; font-size: 16px; } QPushButton:hover { background-color: #B8962D; }")
-            btn.clicked.connect(lambda _, p=pid, n=name, pr=price, q=qty: self.add_product_to_invoice(p, n, pr, q))
+            btn.clicked.connect(lambda _, n=name, pr=price, q=qty: self.add_product_to_invoice(n, pr, q))
             self.products_grid.addWidget(btn, row, col)
             col += 1
             if col >= 3:
                 col = 0
                 row += 1
 
-    def add_product_to_invoice(self, pid: int, name: str, price: float, qty_available: int):
+    def add_product_to_invoice(self, name: str, price: float, qty_available: int):
         if qty_available <= 0:
             QMessageBox.warning(self, "تنبيه", f"المنتج {name} غير متوفر")
             return
         inv_item = QListWidgetItem(f"{name} - {format_amount(price)} ج.م")
-        inv_item.setData(Qt.UserRole, (pid, name, price, 1))
+        inv_item.setData(Qt.UserRole, (name, price, 1))
         self.invoice_list.addItem(inv_item)
         self._update_total()
 
@@ -209,129 +167,39 @@ class SalesDashboard(QWidget):
         total = 0.0
         items = []
         for i in range(self.invoice_list.count()):
-            pid, name, price, qty = self.invoice_list.item(i).data(Qt.UserRole)
+            name, price, qty = self.invoice_list.item(i).data(Qt.UserRole)
             total += price * qty
-            items.append((pid, name, price, qty))
+            items.append((name, price, qty))
 
-        # Determine buyer type
-        is_customer = self.customer_radio.isChecked()
-        is_store = self.store_radio.isChecked()
-        is_employee = self.employee_radio.isChecked()
+        customer_name = self.customer_input.text().strip() or "غير محدد"
 
-        customer_name = self.customer_input.text().strip() if is_customer else None
-        employee_id = self.employee_combo.currentData() if is_employee else None
+        ts = datetime.now()
+        basename = f"receipt_product_{ts.strftime('%Y%m%d_%H%M%S')}"
+        txt_path = os.path.join(receipts_dir(), f"{basename}.txt")
 
-        buyer_type = "customer"
-        is_shop = 0
-        if is_store:
-            buyer_type = "shop"
-            is_shop = 1
-        elif is_employee:
-            buyer_type = "employee"
+        lines = [
+            "صالون مينا العربي",
+            f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}",
+            f"المشتري: {customer_name}",
+            "-" * 30
+        ]
+        for name, price, qty in items:
+            lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
+        lines += ["-" * 30, f"الإجمالي: {format_amount(total)} ج.م"]
+        receipt_text = "\n".join(lines)
 
-        sale_id = self.db.create_sale(
-            date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            employee_id=employee_id,
-            customer_name=customer_name if is_customer else None,
-            is_shop=is_shop,
-            total=total,
-            discount_percent=0,
-            sale_type="product",
-            buyer_type=buyer_type
-        )
-        for pid, name, price, qty in items:
-            self.db.add_sale_item(sale_id, name, price, qty)
-            # Decrease inventory
-            self.db.update_product_qty(pid, -qty)
+        with open(txt_path, "w", encoding="utf-8") as ftxt:
+            ftxt.write(receipt_text)
 
-        # If shop is buyer, record as expense category "مشتريات للمحل" with product name in note
-        if is_store:
-            for _, name, price, qty in items:
-                self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name)
-
-        # Action: for customer -> print receipt, otherwise -> just register (no receipt)
-        if is_customer:
-            ts = datetime.now()
-            arabic_time = format_time_ar(ts)
-            basename = f"receipt_product_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}"
-            txt_path = os.path.join(RECEIPTS_DIR, f"{basename}.txt")
-            html_path = os.path.join(RECEIPTS_DIR, f"{basename}.html")
-
-            # Build professional, large HTML receipt (RTL)
-            rows_html = ""
-            for _, name, price, qty in items:
-                rows_html += f"<tr><td>{name}</td><td>{qty}</td><td>{format_amount(price)}</td><td>{format_amount(price * qty)}</td></tr>"
-
-            receipt_html = f"""<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<title>إيصال</title>
-<style>
-  body {{ font-family: 'Cairo', sans-serif; color: #000; margin: 24px; }}
-  .brand {{ font-size: 28px; font-weight: 700; text-align: center; }}
-  .meta {{ font-size: 16px; margin-top: 6px; text-align: center; }}
-  .separator {{ margin: 12px 0; border-top: 2px solid #000; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 16px; }}
-  th, td {{ border: 1px solid #000; padding: 8px; }}
-  th {{ background: #f0f0f0; }}
-  .total {{ font-size: 20px; font-weight: 700; text-align: left; margin-top: 12px; }}
-  .footer {{ margin-top: 16px; font-size: 14px; text-align: center; color: #444; }}
-</style>
-</head>
-<body>
-  <div class="brand">صالون مينا العربي</div>
-  <div class="meta">التاريخ: {ts.strftime('%Y-%m-%d')} {arabic_time}</div>
-  <div class="meta">المشتري: {customer_name if customer_name else 'غير محدد'}</div>
-  <div class="separator"></div>
-  <table>
-    <thead>
-      <tr><th>المنتج</th><th>الكمية</th><th>سعر الوحدة (ج.م)</th><th>الإجمالي (ج.م)</th></tr>
-    </thead>
-    <tbody>
-      {rows_html}
-    </tbody>
-  </table>
-  <div class="total">الإجمالي: {format_amount(total)} ج.م</div>
-  <div class="footer">شكراً لزيارتكم</div>
-</body>
-</html>"""
-
-            # Also keep a plain text alongside
-            lines = [
-                "صالون مينا العربي",
-                f"التاريخ: {ts.strftime('%Y-%m-%d')} {arabic_time}",
-                f"المشتري: {customer_name if customer_name else 'غير محدد'}",
-                "-" * 30
-            ]
-            for _, name, price, qty in items:
-                lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-            lines += ["-" * 30, f"الإجمالي: {format_amount(total)} ج.م"]
-            receipt_text = "\n".join(lines)
-
-            with open(txt_path, "w", encoding="utf-8") as ftxt:
-                ftxt.write(receipt_text)
-            with open(html_path, "w", encoding="utf-8") as fhtml:
-                fhtml.write(receipt_html)
-
-            # Try direct raw-print to default Windows printer (no dialog)
-            try:
-                print_receipt(receipt_text)
-                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
-            except Exception as e_raw:
-                # Fallback: print the HTML (larger professional format)
-                try:
-                    self._print_receipt_html(receipt_html)
-                    QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
-                except Exception as e_html:
-                    QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e_raw}\n{e_html}\nالمسار:\n{html_path}")
-        else:
-            QMessageBox.information(self, "تم", "تم تسجيل الفاتورة بنجاح.")
+        try:
+            print_receipt(receipt_text)
+            QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{txt_path}")
+        except Exception as e:
+            QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
 
         # Reset
         self.invoice_list.clear()
         self.customer_input.clear()
-        self.customer_radio.setChecked(True)
         self._update_total()
         self.load_products()
 
