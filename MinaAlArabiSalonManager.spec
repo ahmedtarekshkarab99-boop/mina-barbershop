@@ -42,7 +42,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # disable UPX to reduce AV interference
     console=False,  # windowed
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -58,7 +58,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,  # disable UPX
     upx_exclude=[],
     name='MinaAlArabiSalonManager'
 )
