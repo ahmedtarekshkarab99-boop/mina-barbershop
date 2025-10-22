@@ -3,17 +3,23 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QSpinBox, QLineEdit, QDialog, QFormLayout, QDialogButtonBox, QMessageBox,
     QScrollArea, QGridLayout
 )
-from PySide6.QtCore import Qt, QSizeF
-from PySide6.QtGui import QFont, QTextDocument
-from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from datetime import datetime
-from mina_al_arabi.db import Database, RECEIPTS_DIR, DATA_DIR
-from mina_al_arabi.printing import print_receipt
 import os
+
+from mina_al_arabi.printing import print_receipt
 
 
 def format_amount(amount: float) -> str:
     return f"{int(round(amount))}"
+
+
+def receipts_dir() -> str:
+    base = os.path.join(os.path.dirname(__file__), "..", "data", "receipts")
+    base = os.path.abspath(base)
+    os.makedirs(base, exist_ok=True)
+    return base
 
 
 def format_time_ar(dt: datetime) -> str:
@@ -24,10 +30,9 @@ def format_time_ar(dt: datetime) -> str:
     return f"{dt.strftime('%Y-%m-%d')} {h}:{m} {suffix}"
 
 
-class AddServiceDialog(QDialog):
-    def __init__(self, db: Database, parent=None):
+class AddServiceDialogStandalone(QDialog):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.db = db
         self.setWindowTitle("إضافة خدمة")
         layout = QFormLayout(self)
 
@@ -39,24 +44,19 @@ class AddServiceDialog(QDialog):
         layout.addRow("السعر", self.price_input)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.add)
+        buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def add(self):
+    def result(self):
         name = self.name_input.text().strip()
         price = float(self.price_input.value())
-        if not name:
-            QMessageBox.warning(self, "تنبيه", "من فضلك أدخل اسم الخدمة")
-            return
-        self.db.add_service(name, price)
-        self.accept()
+        return name, price
 
 
-class AddEmployeeDialog(QDialog):
-    def __init__(self, db: Database, parent=None):
+class AddEmployeeDialogStandalone(QDialog):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.db = db
         self.setWindowTitle("إضافة موظف")
         layout = QFormLayout(self)
 
@@ -64,23 +64,17 @@ class AddEmployeeDialog(QDialog):
         layout.addRow("اسم الموظف", self.name_input)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.add)
+        buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def add(self):
-        name = self.name_input.text().strip()
-        if not name:
-            QMessageBox.warning(self, "تنبيه", "من فضلك أدخل اسم الموظف")
-            return
-        self.db.add_employee(name)
-        self.accept()
+    def result(self):
+        return self.name_input.text().strip()
 
 
 class CashierDashboard(QWidget):
-    def __init__(self, db: Database):
+    def __init__(self):
         super().__init__()
-        self.db = db
 
         # Fonts
         self.header_font = QFont("Cairo", 18, QFont.Bold)
@@ -140,10 +134,6 @@ class CashierDashboard(QWidget):
         print_btn.clicked.connect(self.print_receipt)
         right.addWidget(print_btn)
 
-        # Initialize printer selection from saved config
-        self._printer_cfg_path = os.path.join(DATA_DIR, "printer.txt")
-        self._selected_printer = self._load_saved_printer()
-
         # Assemble
         root.addLayout(left, 2)   # larger services area
         root.addLayout(right, 1)
@@ -153,18 +143,22 @@ class CashierDashboard(QWidget):
         top_bar.addWidget(QLabel("اختر الموظف:"))
         self.employee_combo = QComboBox()
         top_bar.addWidget(self.employee_combo)
-        refresh_emp_btn = QPushButton("تحديث")
-        refresh_emp_btn.clicked.connect(self._load_employees)
-        top_bar.addWidget(refresh_emp_btn)
+        add_emp_btn = QPushButton("إضافة موظف")
+        add_emp_btn.clicked.connect(self.open_add_employee_dialog)
+        top_bar.addWidget(add_emp_btn)
         right.insertLayout(0, top_bar)
+
+        # Seed demo data
+        self.employees = ["مينا", "علي", "سعيد"]
+        self.services = [("حلاقة", 50), ("غسيل شعر", 30), ("تنظيف بشرة", 80), ("صبغ شعر", 120)]
 
         self._load_employees()
         self._load_services()
 
     def _load_employees(self):
         self.employee_combo.clear()
-        for eid, name in self.db.list_employees():
-            self.employee_combo.addItem(name, eid)
+        for name in self.employees:
+            self.employee_combo.addItem(name)
 
     def _load_services(self):
         # Clear grid
@@ -176,7 +170,7 @@ class CashierDashboard(QWidget):
                 w.setParent(None)
         # Add service buttons
         row, col = 0, 0
-        for sid, name, price in self.db.list_services():
+        for name, price in self.services:
             btn = QPushButton(f"{name}\n{format_amount(price)} ج.م")
             btn.setMinimumSize(160, 120)
             btn.setStyleSheet("QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; font-size: 16px; } QPushButton:hover { background-color: #B8962D; }")
@@ -215,13 +209,17 @@ class CashierDashboard(QWidget):
         self.total_after_label.setText(f"الإجمالي بعد الخصم: {total_after:.2f} ج.م")
 
     def open_add_service_dialog(self):
-        dlg = AddServiceDialog(self.db, self)
+        dlg = AddServiceDialogStandalone(self)
         if dlg.exec():
+            name, price = dlg.result()
+            self.services.append((name, price))
             self._load_services()
 
     def open_add_employee_dialog(self):
-        dlg = AddEmployeeDialog(self.db, self)
+        dlg = AddEmployeeDialogStandalone(self)
         if dlg.exec():
+            name = dlg.result()
+            self.employees.append(name)
             self._load_employees()
 
     def print_receipt(self):
@@ -229,8 +227,7 @@ class CashierDashboard(QWidget):
             QMessageBox.warning(self, "تنبيه", "الفاتورة فارغة")
             return
 
-        employee_id = self.employee_combo.currentData()
-        employee_name = self.employee_combo.currentText() if employee_id is not None else ""
+        employee_name = self.employee_combo.currentText() if self.employee_combo.currentIndex() >= 0 else ""
 
         discount_text = self.discount_combo.currentText()
         discount_percent = 0
@@ -245,92 +242,32 @@ class CashierDashboard(QWidget):
             items.append((name, price, qty))
         total_after = total * (1 - discount_percent/100.0)
 
-        # Save in DB as a sale (service type)
-        sale_id = self.db.create_sale(
-            date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            employee_id=employee_id,
-            customer_name=None,
-            is_shop=0,
-            total=total_after,
-            discount_percent=discount_percent,
-            sale_type="service"
-        )
-        for name, price, qty in items:
-            self.db.add_sale_item(sale_id, name, price, qty)
-
-        # Build professional, large HTML receipt (RTL) and save both HTML and TXT
+        # Build simple text receipt
         ts = datetime.now()
-        basename = f"receipt_service_{sale_id}_{ts.strftime('%Y%m%d_%H%M%S')}"
-        txt_path = os.path.join(RECEIPTS_DIR, f"{basename}.txt")
-        html_path = os.path.join(RECEIPTS_DIR, f"{basename}.html")
-
-        rows_html = ""
-        for name, price, qty in items:
-            rows_html += f"<tr><td>{name}</td><td>{qty}</td><td>{format_amount(price)}</td><td>{format_amount(price * qty)}</td></tr>"
-
-        receipt_html = f"""<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<title>إيصال خدمة</title>
-<style>
-  body {{ font-family: 'Cairo', sans-serif; color: #000; margin: 24px; }}
-  .brand {{ font-size: 28px; font-weight: 700; text-align: center; }}
-  .meta {{ font-size: 16px; margin-top: 6px; text-align: center; }}
-  .separator {{ margin: 12px 0; border-top: 2px solid #000; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 16px; }}
-  th, td {{ border: 1px solid #000; padding: 8px; }}
-  th {{ background: #f0f0f0; }}
-  .total {{ font-size: 20px; font-weight: 700; text-align: left; margin-top: 12px; }}
-  .footer {{ margin-top: 16px; font-size: 14px; text-align: center; color: #444; }}
-</style>
-</head>
-<body>
-  <div class="brand">صالون مينا العربي</div>
-  <div class="meta">التاريخ: {format_time_ar(ts)}</div>
-  <div class="meta">الموظف: {employee_name}</div>
-  <div class="separator"></div>
-  <table>
-    <thead>
-      <tr><th>الخدمة</th><th>الكمية</th><th>سعر الخدمة (ج.م)</th><th>الإجمالي (ج.م)</th></tr>
-    </thead>
-    <tbody>
-      {rows_html}
-    </tbody>
-  </table>
-  <div class="total">الإجمالي قبل الخصم: {format_amount(total)} ج.م</div>
-  <div class="total">الخصم: {discount_percent}%</div>
-  <div class="total">الإجمالي بعد الخصم: {format_amount(total_after)} ج.م</div>
-  <div class="footer">شكراً لزيارتكم</div>
-</body>
-</html>"""
-
-        # Plain text alongside
-        lines = [
-            "صالون مينا العربي",
-            f"التاريخ: {format_time_ar(ts)}",
-            f"الموظف: {employee_name}",
-            "-" * 30
-        ]
+        lines = []
+        lines.append("صالون مينا العربي")
+        lines.append(f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}")
+        lines.append(f"الموظف: {employee_name}")
+        lines.append("-" * 30)
         for name, price, qty in items:
             lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-        lines += ["-" * 30, f"الإجمالي قبل الخصم: {format_amount(total)} ج.م", f"الخصم: {discount_percent}%", f"الإجمالي بعد الخصم: {format_amount(total_after)} ج.م"]
-        with open(txt_path, "w", encoding="utf-8") as ftxt:
-            ftxt.write("\n".join(lines))
-        with open(html_path, "w", encoding="utf-8") as fhtml:
-            fhtml.write(receipt_html)
+        lines.append("-" * 30)
+        lines.append(f"الإجمالي قبل الخصم: {format_amount(total)} ج.م")
+        lines.append(f"الخصم: {discount_percent}%")
+        lines.append(f"الإجمالي بعد الخصم: {format_amount(total_after)} ج.م")
+        text = "\n".join(lines)
 
-        # Print directly to default Windows printer (no dialog)
+        # Save copy
+        path = os.path.join(receipts_dir(), f"receipt_service_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        # Print directly to default Windows printer
         try:
-            print_receipt("\n".join(lines))
-            QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
-        except Exception as e_raw:
-            # Fallback: print the HTML (larger professional format)
-            try:
-                self._print_receipt_html(receipt_html)
-                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\nالمسار:\n{html_path}")
-            except Exception as e_html:
-                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e_raw}\n{e_html}\nالمسار:\n{html_path}")
+            print_receipt(text)
+            QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{path}")
+        except Exception as e:
+            QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{path}")
 
         self.invoice_list.clear()
         self._update_total()
