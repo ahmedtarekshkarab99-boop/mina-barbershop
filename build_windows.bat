@@ -45,6 +45,9 @@ pyinstaller --noconfirm --clean --noupx --windowed ^
   --distpath "dist" ^
   --workpath "build" ^
   --specpath "." ^
+  --additional-hooks-dir hooks ^
+  --hidden-import mina_al_arabi.dashboards.cashier ^
+  --hidden-import mina_al_arabi.dashboards.sales ^
   mina_al_arabi\main.py
 
 if errorlevel 1 (
