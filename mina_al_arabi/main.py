@@ -1,5 +1,5 @@
 import sys
-from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QLabel
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 
@@ -8,9 +8,24 @@ def main():
     app = QApplication(sys.argv)
     app.setLayoutDirection(Qt.RightToLeft)
 
-    # Build minimal app with Cashier and Sales tabs only (no DB)
-    from mina_al_arabi.dashboards.cashier import CashierDashboard
-    from mina_al_arabi.dashboards.sales import SalesDashboard
+    # Build minimal app with Cashier and Sales tabs only
+    try:
+        from mina_al_arabi.dashboards.cashier import CashierDashboard
+    except Exception:
+        class CashierDashboard(QWidget):
+            def __init__(self):
+                super().__init__()
+                lay = QVBoxLayout(self)
+                lay.addWidget(QLabel("الكاشير غير متاح في هذه النسخة."))
+
+    try:
+        from mina_al_arabi.dashboards.sales import SalesDashboard
+    except Exception:
+        class SalesDashboard(QWidget):
+            def __init__(self):
+                super().__init__()
+                lay = QVBoxLayout(self)
+                lay.addWidget(QLabel("المبيعات غير متاحة في هذه النسخة."))
 
     window = QMainWindow()
     window.setWindowTitle("مدير صالون مينا العربي (نسخة مُعاد بناؤها)")
