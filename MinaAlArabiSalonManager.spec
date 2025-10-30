@@ -30,7 +30,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=['hooks'],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['hooks/rthook_import_dashboards.py'],
     excludes=[],
     noarchive=False,
 )
