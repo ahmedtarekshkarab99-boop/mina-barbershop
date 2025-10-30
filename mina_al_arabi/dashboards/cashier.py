@@ -73,8 +73,9 @@ class AddEmployeeDialogStandalone(QDialog):
 
 
 class CashierDashboard(QWidget):
-    def __init__(self):
+    def __init__(self, db: Database):
         super().__init__()
+        self.db = db
 
         # Fonts
         self.header_font = QFont("Cairo", 18, QFont.Bold)
@@ -87,6 +88,15 @@ class CashierDashboard(QWidget):
         title_services = QLabel("الخدمات المتاحة")
         title_services.setFont(self.header_font)
         left.addWidget(title_services)
+
+        # Search bar
+        search_row = QHBoxLayout()
+        search_row.addWidget(QLabel("بحث:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("ابحث عن خدمة...")
+        self.search_input.textChanged.connect(self._load_services)
+        search_row.addWidget(self.search_input)
+        left.addLayout(search_row)
 
         self.services_area = QScrollArea()
         self.services_area.setWidgetResizable(True)
@@ -121,13 +131,21 @@ class CashierDashboard(QWidget):
         discount_row = QHBoxLayout()
         discount_row.addWidget(QLabel("الخصم:"))
         self.discount_combo = QComboBox()
-        self.discount_combo.addItems(["بدون خصم", "10%", "15%", "20%"])
+        self.discount_combo.addItems(["بدون خصم", "10%", "20%", "30%", "40%", "50%"])
         self.discount_combo.currentIndexChanged.connect(self._update_total)
         discount_row.addWidget(self.discount_combo)
+
+        # Hidden material deduction
+        mat_row = QHBoxLayout()
+        mat_row.addWidget(QLabel("خصم مواد (مخفي):"))
+        self.material_deduction_input = QSpinBox()
+        self.material_deduction_input.setMaximum(1000000)
+        mat_row.addWidget(self.material_deduction_input)
 
         totals_layout.addWidget(self.total_before_label)
         totals_layout.addWidget(self.total_after_label)
         totals_layout.addLayout(discount_row)
+        totals_layout.addLayout(mat_row)
         right.addLayout(totals_layout)
 
         print_btn = QPushButton("طباعة إيصال")
@@ -148,17 +166,17 @@ class CashierDashboard(QWidget):
         top_bar.addWidget(add_emp_btn)
         right.insertLayout(0, top_bar)
 
-        # Seed demo data
-        self.employees = ["مينا", "علي", "سعيد"]
-        self.services = [("حلاقة", 50), ("غسيل شعر", 30), ("تنظيف بشرة", 80), ("صبغ شعر", 120)]
-
         self._load_employees()
         self._load_services()
 
     def _load_employees(self):
         self.employee_combo.clear()
-        for name in self.employees:
-            self.employee_combo.addItem(name)
+        try:
+            rows = self.db.list_employees()
+            for eid, name in rows:
+                self.employee_combo.addItem(name, eid)
+        except Exception:
+            pass
 
     def _load_services(self):
         # Clear grid
@@ -168,9 +186,18 @@ class CashierDashboard(QWidget):
             self.services_grid.removeItem(item)
             if w:
                 w.setParent(None)
-        # Add service buttons
+        # Query DB and filter by search
+        query = (self.search_input.text().strip() or "").lower()
+        try:
+            services = self.db.list_services()
+        except Exception:
+            services = []
+        # Reverse order so newest appears first
+        services = list(reversed(services))
         row, col = 0, 0
-        for name, price in self.services:
+        for sid, name, price in services:
+            if query and (query not in name.lower()):
+                continue
             btn = QPushButton(f"{name}\n{format_amount(price)} ج.م")
             btn.setMinimumSize(160, 120)
             btn.setStyleSheet("QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; font-size: 16px; } QPushButton:hover { background-color: #B8962D; }")
@@ -212,27 +239,38 @@ class CashierDashboard(QWidget):
         dlg = AddServiceDialogStandalone(self)
         if dlg.exec():
             name, price = dlg.result()
-            self.services.append((name, price))
-            self._load_services()
+            if name:
+                try:
+                    self.db.add_service(name, price)
+                except Exception:
+                    pass
+                self._load_services()
 
     def open_add_employee_dialog(self):
         dlg = AddEmployeeDialogStandalone(self)
         if dlg.exec():
             name = dlg.result()
-            self.employees.append(name)
-            self._load_employees()
+            if name:
+                try:
+                    self.db.add_employee(name)
+                except Exception:
+                    pass
+                self._load_employees()
 
     def print_receipt(self):
         if self.invoice_list.count() == 0:
             QMessageBox.warning(self, "تنبيه", "الفاتورة فارغة")
             return
 
+        employee_id = self.employee_combo.currentData() if self.employee_combo.currentIndex() >= 0 else None
         employee_name = self.employee_combo.currentText() if self.employee_combo.currentIndex() >= 0 else ""
 
         discount_text = self.discount_combo.currentText()
         discount_percent = 0
         if discount_text.endswith("%") and discount_text != "بدون خصم":
             discount_percent = int(discount_text[:-1])
+
+        material_deduction = float(self.material_deduction_input.value())
 
         total = 0.0
         items = []
@@ -242,7 +280,33 @@ class CashierDashboard(QWidget):
             items.append((name, price, qty))
         total_after = total * (1 - discount_percent/100.0)
 
-        # Build simple text receipt
+        # Link to active shift
+        try:
+            sh = self.db.get_active_shift()
+            shift_id = sh[0] if sh else None
+        except Exception:
+            shift_id = None
+
+        # Create sale in DB (service)
+        try:
+            sale_id = self.db.create_sale(
+                date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                employee_id=employee_id,
+                customer_name=None,
+                is_shop=0,
+                total=total,
+                discount_percent=discount_percent,
+                sale_type="service",
+                buyer_type="customer",
+                material_deduction=material_deduction,
+                shift_id=shift_id,
+            )
+            for name, price, qty in items:
+                self.db.add_sale_item(sale_id, name, price, qty)
+        except Exception:
+            pass
+
+        # Build simple text receipt (material deduction hidden)
         ts = datetime.now()
         lines = []
         lines.append("صالون مينا العربي")
@@ -270,6 +334,7 @@ class CashierDashboard(QWidget):
             QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{path}")
 
         self.invoice_list.clear()
+        self.material_deduction_input.setValue(0)
         self._update_total()
 
     def _load_saved_printer(self) -> str | None:
