@@ -4,14 +4,6 @@ from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 
 from mina_al_arabi.db import Database
-from mina_al_arabi.dashboards.home import HomeDashboard
-from mina_al_arabi.dashboards.cashier import CashierDashboard
-from mina_al_arabi.dashboards.sales import SalesDashboard
-from mina_al_arabi.dashboards.inventory import InventoryDashboard
-from mina_al_arabi.dashboards.expenses import ExpensesDashboard
-from mina_al_arabi.dashboards.reports import ReportsDashboard
-from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
-from mina_al_arabi.dashboards.shift import ShiftDashboard
 
 
 def apply_theme():
@@ -49,24 +41,68 @@ def main():
     tabs = QTabWidget()
     window.setCentralWidget(tabs)
 
-    # Tabs (order requested)
-    home_tab = HomeDashboard(db)
-    cashier_tab = CashierDashboard(db)
-    sales_tab = SalesDashboard(db)
-    inventory_tab = InventoryDashboard(db)
-    expenses_tab = ExpensesDashboard(db)
-    reports_tab = ReportsDashboard(db)
-    admin_tab = AdminReportDashboard(db)
-    shift_tab = ShiftDashboard(db)
+    # Tabs (order requested) with safe imports to avoid startup crash in EXE
+    from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
-    tabs.addTab(home_tab, "الرئيسية")
-    tabs.addTab(cashier_tab, "الكاشير")
-    tabs.addTab(sales_tab, "المبيعات")
-    tabs.addTab(inventory_tab, "المنتجات والخدمات")
-    tabs.addTab(expenses_tab, "المصاريف")
-    tabs.addTab(reports_tab, "التقارير")
-    tabs.addTab(admin_tab, "إدارة")
-    tabs.addTab(shift_tab, "الشفتات")
+    def add_tab_or_placeholder(factory, title):
+        try:
+            widget = factory()
+            tabs.addTab(widget, title)
+            return widget
+        except Exception as e:
+            ph = QWidget()
+            lay = QVBoxLayout(ph)
+            lay.addWidget(QLabel(f"تعذر تحميل \"{title}\": {e}"))
+            tabs.addTab(ph, title)
+            return None
+
+    # Home
+    def _home_factory():
+        from mina_al_arabi.dashboards.home import HomeDashboard
+        return HomeDashboard(db)
+    home_tab = add_tab_or_placeholder(_home_factory, "الرئيسية")
+
+    # Cashier
+    def _cashier_factory():
+        from mina_al_arabi.dashboards.cashier import CashierDashboard
+        return CashierDashboard(db)
+    cashier_tab = add_tab_or_placeholder(_cashier_factory, "الكاشير")
+
+    # Sales
+    def _sales_factory():
+        from mina_al_arabi.dashboards.sales import SalesDashboard
+        return SalesDashboard(db)
+    sales_tab = add_tab_or_placeholder(_sales_factory, "المبيعات")
+
+    # Inventory
+    def _inventory_factory():
+        from mina_al_arabi.dashboards.inventory import InventoryDashboard
+        return InventoryDashboard(db)
+    inventory_tab = add_tab_or_placeholder(_inventory_factory, "المنتجات والخدمات")
+
+    # Expenses
+    def _expenses_factory():
+        from mina_al_arabi.dashboards.expenses import ExpensesDashboard
+        return ExpensesDashboard(db)
+    expenses_tab = add_tab_or_placeholder(_expenses_factory, "المصاريف")
+
+    # Reports
+    def _reports_factory():
+        from mina_al_arabi.dashboards.reports import ReportsDashboard
+        return ReportsDashboard(db)
+    reports_tab = add_tab_or_placeholder(_reports_factory, "التقارير")
+
+    # Admin
+    def _admin_factory():
+        from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
+        return AdminReportDashboard(db)
+    admin_tab = add_tab_or_placeholder(_admin_factory, "إدارة")
+
+    # Shift
+    def _shift_factory():
+        from mina_al_arabi.dashboards.shift import ShiftDashboard
+        return ShiftDashboard(db)
+    shift_tab = add_tab_or_placeholder(_shift_factory, "الشفتات")
 
     # Management menu
     from PySide6.QtWidgets import QMenuBar, QMenu, QInputDialog, QMessageBox
