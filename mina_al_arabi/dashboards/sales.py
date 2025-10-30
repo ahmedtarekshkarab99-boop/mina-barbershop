@@ -31,8 +31,9 @@ def format_time_ar(dt: datetime) -> str:
 
 
 class SalesDashboard(QWidget):
-    def __init__(self):
+    def __init__(self, db: Database):
         super().__init__()
+        self.db = db
 
         self.header_font = QFont("Cairo", 18, QFont.Bold)
         self.body_font = QFont("Cairo", 14)
@@ -45,8 +46,12 @@ class SalesDashboard(QWidget):
         title_products.setFont(self.header_font)
         left.addWidget(title_products)
 
-        # Top control row: refresh
+        # Search + refresh
         ctrl_row = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("ابحث عن منتج...")
+        self.search_input.textChanged.connect(self.load_products)
+        ctrl_row.addWidget(self.search_input)
         refresh_btn = QPushButton("تحديث المنتجات")
         refresh_btn.setFont(self.body_font)
         refresh_btn.clicked.connect(self.load_products)
@@ -69,12 +74,14 @@ class SalesDashboard(QWidget):
         title_invoice.setFont(self.header_font)
         right.addWidget(title_invoice)
 
-        # Buyer: only customer for simplified build
         buyer_layout = QHBoxLayout()
         buyer_layout.addWidget(QLabel("اسم العميل"))
         self.customer_input = QLineEdit()
         self.customer_input.setFont(self.body_font)
         buyer_layout.addWidget(self.customer_input)
+        buyer_layout.addWidget(QLabel("الموظف"))
+        self.employee_combo = QComboBox()
+        buyer_layout.addWidget(self.employee_combo)
         right.addLayout(buyer_layout)
 
         self.invoice_list = QListWidget()
@@ -89,10 +96,28 @@ class SalesDashboard(QWidget):
         action_row.addWidget(remove_btn)
         right.addLayout(action_row)
 
-        totals_layout = QHBoxLayout()
+        totals_layout = QVBoxLayout()
         self.total_label = QLabel("الإجمالي: 0 ج.م")
         self.total_label.setFont(self.body_font)
         totals_layout.addWidget(self.total_label)
+
+        # Discounts
+        disc_row = QHBoxLayout()
+        disc_row.addWidget(QLabel("الخصم:"))
+        self.discount_combo = QComboBox()
+        self.discount_combo.addItems(["بدون خصم", "10%", "20%", "30%", "40%", "50%"])
+        self.discount_combo.currentIndexChanged.connect(self._update_total)
+        disc_row.addWidget(self.discount_combo)
+
+        # Hidden material deduction
+        mat_row = QHBoxLayout()
+        mat_row.addWidget(QLabel("خصم مواد (مخفي):"))
+        self.material_deduction_input = QSpinBox()
+        self.material_deduction_input.setMaximum(1000000)
+        mat_row.addWidget(self.material_deduction_input)
+
+        totals_layout.addLayout(disc_row)
+        totals_layout.addLayout(mat_row)
         right.addLayout(totals_layout)
 
         self.submit_btn = QPushButton("طباعة إيصال")
@@ -104,14 +129,17 @@ class SalesDashboard(QWidget):
         root.addLayout(left, 3)
         root.addLayout(right, 1)
 
-        # Seed demo data
-        self.products = [("شامبو", 40, 20), ("جل شعر", 35, 30), ("بديل زيت", 25, 15), ("كريم", 50, 10)]
-
+        self._load_employees()
         self.load_products()
 
-    def _update_buyer_fields(self):
-        # Simplified: only customer name used
-        self.submit_btn.setText("طباعة إيصال")
+    def _load_employees(self):
+        self.employee_combo.clear()
+        try:
+            rows = self.db.list_employees()
+            for eid, name in rows:
+                self.employee_combo.addItem(name, eid)
+        except Exception:
+            pass
 
     
 
@@ -123,27 +151,37 @@ class SalesDashboard(QWidget):
             self.products_grid.removeItem(item)
             if w:
                 w.setParent(None)
-        # Add product buttons
+        # Query DB, reverse order, filter by search
+        query = (self.search_input.text().strip() or "").lower()
+        try:
+            products = self.db.list_products()
+        except Exception:
+            products = []
+        products = list(reversed(products))
         row, col = 0, 0
-        for name, price, qty in self.products:
+        for pid, name, price, qty in products:
+            if query and (query not in name.lower()):
+                continue
             label_text = f"{name}\n{format_amount(price)} ج.م\nالمتوفر: {qty}"
             btn = QPushButton(label_text)
-            btn.setMinimumSize(260, 180)
+            # Smaller icons than before to fit more items
+            btn.setMinimumSize(220, 160)
             btn.setStyleSheet("QPushButton { background-color: #D4AF37; color: black; border-radius: 8px; font-size: 16px; } QPushButton:hover { background-color: #B8962D; }")
-            btn.clicked.connect(lambda _, n=name, pr=price, q=qty: self.add_product_to_invoice(n, pr, q))
+            btn.clicked.connect(lambda _, p=pid, n=name, pr=price, q=qty: self.add_product_to_invoice(p, n, pr, q))
             self.products_grid.addWidget(btn, row, col)
             col += 1
             if col >= 3:
                 col = 0
                 row += 1
 
-    def add_product_to_invoice(self, name: str, price: float, qty_available: int):
+    def add_product_to_invoice(self, pid: int, name: str, price: float, qty_available: int):
         if qty_available <= 0:
             QMessageBox.warning(self, "تنبيه", f"المنتج {name} غير متوفر")
             return
         inv_item = QListWidgetItem(f"{name} - {format_amount(price)} ج.م")
-        inv_item.setData(Qt.UserRole, (name, price, 1))
-        self.invoice_list.addItem(inv_item)
+        inv_item.setData(Qt.UserRole, (pid, name, price, 1))
+        # Newest items first: insert at top
+        self.invoice_list.insertItem(0, inv_item)
         self._update_total()
 
     def remove_selected_invoice_item(self):
@@ -155,9 +193,21 @@ class SalesDashboard(QWidget):
     def _update_total(self):
         total = 0.0
         for i in range(self.invoice_list.count()):
-            pid, name, price, qty = self.invoice_list.item(i).data(Qt.UserRole)
+            data = self.invoice_list.item(i).data(Qt.UserRole)
+            if data is None:
+                continue
+            if len(data) == 3:
+                name, price, qty = data
+            else:
+                pid, name, price, qty = data
             total += price * qty
-        self.total_label.setText(f"الإجمالي: {format_amount(total)} ج.م")
+        # apply visible discount
+        discount_text = self.discount_combo.currentText()
+        discount_percent = 0
+        if discount_text.endswith("%") and discount_text != "بدون خصم":
+            discount_percent = int(discount_text[:-1])
+        total_after = total * (1 - discount_percent/100.0)
+        self.total_label.setText(f"الإجمالي: {format_amount(total_after)} ج.م")
 
     def _submit_invoice(self):
         if self.invoice_list.count() == 0:
@@ -167,11 +217,50 @@ class SalesDashboard(QWidget):
         total = 0.0
         items = []
         for i in range(self.invoice_list.count()):
-            name, price, qty = self.invoice_list.item(i).data(Qt.UserRole)
+            pid, name, price, qty = self.invoice_list.item(i).data(Qt.UserRole)
             total += price * qty
-            items.append((name, price, qty))
+            items.append((pid, name, price, qty))
+
+        discount_text = self.discount_combo.currentText()
+        discount_percent = 0
+        if discount_text.endswith("%") and discount_text != "بدون خصم":
+            discount_percent = int(discount_text[:-1])
+        material_deduction = float(self.material_deduction_input.value())
 
         customer_name = self.customer_input.text().strip() or "غير محدد"
+        employee_id = self.employee_combo.currentData() if self.employee_combo.currentIndex() >= 0 else None
+
+        # Link to active shift
+        try:
+            sh = self.db.get_active_shift()
+            shift_id = sh[0] if sh else None
+        except Exception:
+            shift_id = None
+
+        # Create sale in DB (product)
+        try:
+            sale_id = self.db.create_sale(
+                date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                employee_id=employee_id,
+                customer_name=customer_name,
+                is_shop=0,
+                total=total,
+                discount_percent=discount_percent,
+                sale_type="product",
+                buyer_type="customer",
+                material_deduction=material_deduction,
+                shift_id=shift_id,
+            )
+            for pid, name, price, qty in items:
+                self.db.add_sale_item(sale_id, name, price, qty)
+                # Reduce inventory
+                if pid:
+                    try:
+                        self.db.update_product_qty(pid, -qty)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
         ts = datetime.now()
         basename = f"receipt_product_{ts.strftime('%Y%m%d_%H%M%S')}"
@@ -183,9 +272,11 @@ class SalesDashboard(QWidget):
             f"المشتري: {customer_name}",
             "-" * 30
         ]
-        for name, price, qty in items:
+        for _, name, price, qty in items:
             lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-        lines += ["-" * 30, f"الإجمالي: {format_amount(total)} ج.م"]
+        # visible discount effect
+        total_after = total * (1 - discount_percent/100.0)
+        lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
         receipt_text = "\n".join(lines)
 
         with open(txt_path, "w", encoding="utf-8") as ftxt:
@@ -200,6 +291,7 @@ class SalesDashboard(QWidget):
         # Reset
         self.invoice_list.clear()
         self.customer_input.clear()
+        self.material_deduction_input.setValue(0)
         self._update_total()
         self.load_products()
 
