@@ -5,6 +5,20 @@ from PySide6.QtCore import Qt
 
 from mina_al_arabi.db import Database
 
+# Hint imports for PyInstaller static analysis to ensure bundling of dashboards.
+# Wrapped in try/except to avoid crashing if any module is missing during source runs.
+try:
+    import mina_al_arabi.dashboards.home as _dash_home
+    import mina_al_arabi.dashboards.cashier as _dash_cashier
+    import mina_al_arabi.dashboards.sales as _dash_sales
+    import mina_al_arabi.dashboards.inventory as _dash_inventory
+    import mina_al_arabi.dashboards.expenses as _dash_expenses
+    import mina_al_arabi.dashboards.reports as _dash_reports
+    import mina_al_arabi.dashboards.admin_report as _dash_admin
+    import mina_al_arabi.dashboards.shift as _dash_shift
+except Exception:
+    pass
+
 
 def apply_theme():
     try:
