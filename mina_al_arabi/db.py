@@ -66,6 +66,8 @@ class Database:
                 type TEXT NOT NULL, -- 'service' or 'product'
                 buyer_type TEXT NOT NULL DEFAULT 'customer',
                 cleared INTEGER NOT NULL DEFAULT 0,
+                material_deduction REAL NOT NULL DEFAULT 0,
+                shift_id INTEGER,
                 FOREIGN KEY(employee_id) REFERENCES employees(id)
             )
             """)
@@ -88,7 +90,8 @@ class Database:
                 date TEXT NOT NULL,
                 category TEXT NOT NULL,
                 amount REAL NOT NULL,
-                note TEXT
+                note TEXT,
+                shift_id INTEGER
             )
             """)
 
@@ -116,19 +119,32 @@ class Database:
                 FOREIGN KEY(employee_id) REFERENCES employees(id)
             )
             """)
-            # Migrations
-            try:
-                c.execute("ALTER TABLE sales ADD COLUMN buyer_type TEXT NOT NULL DEFAULT 'customer'")
-            except Exception:
-                pass
-            try:
-                c.execute("ALTER TABLE sales ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
-            except Exception:
-                pass
-            try:
-                c.execute("ALTER TABLE loans ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
-            except Exception:
-                pass
+
+            # Shifts
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS shifts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shift_number INTEGER NOT NULL,
+                cashier_name TEXT NOT NULL,
+                opened_at TEXT NOT NULL,
+                closed_at TEXT,
+                active INTEGER NOT NULL DEFAULT 1
+            )
+            """)
+
+            # Migrations (idempotent)
+            for stmt in [
+                "ALTER TABLE sales ADD COLUMN buyer_type TEXT NOT NULL DEFAULT 'customer'",
+                "ALTER TABLE sales ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE loans ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE sales ADD COLUMN material_deduction REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE sales ADD COLUMN shift_id INTEGER",
+                "ALTER TABLE expenses ADD COLUMN shift_id INTEGER",
+            ]:
+                try:
+                    c.execute(stmt)
+                except Exception:
+                    pass
 
             conn.commit()
 
@@ -220,13 +236,14 @@ class Database:
     # Sales and items
     def create_sale(self, date: str, employee_id: Optional[int], customer_name: Optional[str],
                     is_shop: int, total: float, discount_percent: int, sale_type: str,
-                    buyer_type: str = "customer") -> int:
+                    buyer_type: str = "customer", material_deduction: float = 0.0,
+                    shift_id: Optional[int] = None, cashier_name: Optional[str] = None) -> int:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            INSERT INTO sales(date, employee_id, customer_name, is_shop, total, discount_percent, type, buyer_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (date, employee_id, customer_name, is_shop, total, discount_percent, sale_type, buyer_type))
+            INSERT INTO sales(date, employee_id, customer_name, is_shop, total, discount_percent, type, buyer_type, material_deduction, shift_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (date, employee_id, customer_name, is_shop, total, discount_percent, sale_type, buyer_type, material_deduction, shift_id))
             sale_id = c.lastrowid
             conn.commit()
             return sale_id
@@ -292,15 +309,15 @@ class Database:
             ]
 
     # Expenses
-    def add_expense(self, category: str, amount: float, note: Optional[str] = None, date: Optional[str] = None):
+    def add_expense(self, category: str, amount: float, note: Optional[str] = None, date: Optional[str] = None, shift_id: Optional[int] = None):
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            INSERT INTO expenses(date, category, amount, note)
-            VALUES (?, ?, ?, ?)
-            """, (date, category, amount, note))
+            INSERT INTO expenses(date, category, amount, note, shift_id)
+            VALUES (?, ?, ?, ?, ?)
+            """, (date, category, amount, note, shift_id))
             conn.commit()
 
     def list_expenses(self) -> List[Tuple[int, str, str, float, Optional[str]]]:
@@ -436,6 +453,17 @@ class Database:
             FROM expenses
             WHERE category = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ?
             """, (category, str(year), f"{month:02d}"))
+            val = c.fetchone()[0]
+            return float(val or 0)
+
+    def sum_material_deductions_in_period(self, start_date: str, end_date: str) -> float:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT COALESCE(SUM(material_deduction), 0)
+            FROM sales
+            WHERE date BETWEEN ? AND ?
+            """, (start_date, end_date))
             val = c.fetchone()[0]
             return float(val or 0)
 
