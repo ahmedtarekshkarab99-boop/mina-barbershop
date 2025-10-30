@@ -4,6 +4,14 @@ from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 
 from mina_al_arabi.db import Database
+from mina_al_arabi.dashboards.home import HomeDashboard
+from mina_al_arabi.dashboards.cashier import CashierDashboard
+from mina_al_arabi.dashboards.sales import SalesDashboard
+from mina_al_arabi.dashboards.inventory import InventoryDashboard
+from mina_al_arabi.dashboards.expenses import ExpensesDashboard
+from mina_al_arabi.dashboards.reports import ReportsDashboard
+from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
+from mina_al_arabi.dashboards.shift import ShiftDashboard
 
 
 def apply_theme():
@@ -41,80 +49,24 @@ def main():
     tabs = QTabWidget()
     window.setCentralWidget(tabs)
 
-    # Keep references for refresh and management menu
-    home_tab = None
-    cashier_tab = None
-    sales_tab = None
-    inventory_tab = None
-    expenses_tab = None
-    reports_tab = None
-    admin_tab = None
-    shift_tab = None
+    # Tabs (order requested)
+    home_tab = HomeDashboard(db)
+    cashier_tab = CashierDashboard(db)
+    sales_tab = SalesDashboard(db)
+    inventory_tab = InventoryDashboard(db)
+    expenses_tab = ExpensesDashboard(db)
+    reports_tab = ReportsDashboard(db)
+    admin_tab = AdminReportDashboard(db)
+    shift_tab = ShiftDashboard(db)
 
-    # Tabs (order requested) with safe imports to avoid startup crash
-    try:
-        from mina_al_arabi.dashboards.home import HomeDashboard
-        home_tab = HomeDashboard(db)
-        tabs.addTab(home_tab, "الرئيسية")
-    except Exception:
-        pass
-
-    try:
-        from mina_al_arabi.dashboards.cashier import CashierDashboard
-        cashier_tab = CashierDashboard(db)
-        tabs.addTab(cashier_tab, "الكاشير")
-    except Exception:
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-        ph = QWidget()
-        lay = QVBoxLayout(ph)
-        lay.addWidget(QLabel("شاشة الكاشير غير متاحة في هذه النسخة."))
-        tabs.addTab(ph, "الكاشير")
-
-    try:
-        from mina_al_arabi.dashboards.sales import SalesDashboard
-        sales_tab = SalesDashboard(db)
-        tabs.addTab(sales_tab, "المبيعات")
-    except Exception:
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-        ph = QWidget()
-        lay = QVBoxLayout(ph)
-        lay.addWidget(QLabel("شاشة المبيعات غير متاحة في هذه النسخة."))
-        tabs.addTab(ph, "المبيعات")
-
-    try:
-        from mina_al_arabi.dashboards.inventory import InventoryDashboard
-        inventory_tab = InventoryDashboard(db)
-        tabs.addTab(inventory_tab, "المنتجات والخدمات")
-    except Exception:
-        pass
-
-    try:
-        from mina_al_arabi.dashboards.expenses import ExpensesDashboard
-        expenses_tab = ExpensesDashboard(db)
-        tabs.addTab(expenses_tab, "المصاريف")
-    except Exception:
-        pass
-
-    try:
-        from mina_al_arabi.dashboards.reports import ReportsDashboard
-        reports_tab = ReportsDashboard(db)
-        tabs.addTab(reports_tab, "التقارير")
-    except Exception:
-        pass
-
-    try:
-        from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
-        admin_tab = AdminReportDashboard(db)
-        tabs.addTab(admin_tab, "إدارة")
-    except Exception:
-        pass
-
-    try:
-        from mina_al_arabi.dashboards.shift import ShiftDashboard
-        shift_tab = ShiftDashboard(db)
-        tabs.addTab(shift_tab, "الشفتات")
-    except Exception:
-        pass
+    tabs.addTab(home_tab, "الرئيسية")
+    tabs.addTab(cashier_tab, "الكاشير")
+    tabs.addTab(sales_tab, "المبيعات")
+    tabs.addTab(inventory_tab, "المنتجات والخدمات")
+    tabs.addTab(expenses_tab, "المصاريف")
+    tabs.addTab(reports_tab, "التقارير")
+    tabs.addTab(admin_tab, "إدارة")
+    tabs.addTab(shift_tab, "الشفتات")
 
     # Management menu
     from PySide6.QtWidgets import QMenuBar, QMenu, QInputDialog, QMessageBox
