@@ -55,6 +55,11 @@ class InventoryDashboard(QWidget):
         self.table.setFont(self.body_font)
         self.table.setHorizontalHeaderLabels(["المعرف", "الاسم", "السعر", "الكمية"])
         self.table.setStyleSheet("QTableWidget { gridline-color: #D4AF37; }")
+        # Select whole rows for clearer editing of a single product
+        try:
+            self.table.setSelectionBehavior(self.table.SelectRows)
+        except Exception:
+            pass
         # Expand to fill available space
         layout.addWidget(self.table)
 
@@ -73,6 +78,11 @@ class InventoryDashboard(QWidget):
         edit_btn.setFont(self.body_font)
         edit_btn.clicked.connect(self.edit_selected_product_quantity)
         action_row.addWidget(edit_btn)
+
+        edit_price_btn = QPushButton("تعديل السعر")
+        edit_price_btn.setFont(self.body_font)
+        edit_price_btn.clicked.connect(self.edit_selected_product_price)
+        action_row.addWidget(edit_price_btn)
 
         layout.addLayout(action_row)
 
@@ -145,3 +155,26 @@ class InventoryDashboard(QWidget):
             self.table.setItem(r, 3, QTableWidgetItem(str(qty)))
         self.table.resizeColumnsToContents()
         self.table.resizeRowsToContents()
+
+    def edit_selected_product_price(self):
+        row = self.table.currentRow()
+        if row < 0:
+            return
+        pid_item = self.table.item(row, 0)
+        price_item = self.table.item(row, 2)
+        if not pid_item or not price_item:
+            return
+        try:
+            pid = int(pid_item.text())
+            current_price = int(price_item.text())
+        except ValueError:
+            return
+
+        new_price, ok = QInputDialog.getInt(self, "تعديل السعر", "أدخل السعر الجديد (ج.م):", value=current_price, min=0, max=100000)
+        if not ok:
+            return
+
+        try:
+            self.db.update_product_price(pid, float(new_price))
+        finally:
+            self.load_products()
