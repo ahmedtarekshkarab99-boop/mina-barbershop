@@ -127,9 +127,9 @@ class ReportsDashboard(QWidget):
                 effective_total = 0.0
 
             if s.get("buyer_type") == "employee":
-                # Treat products for employee as deduction (full effective amount)
-                desc = "خصم (منتج للموظف)"
-                total_deductions += effective_total
+                # Show for tracking only; do not include in totals/balance/commission
+                desc = "فاتورة مبيعات (للموظف)"
+                # No accumulation to totals or deductions
             elif s["type"] == "service":
                 total_services += effective_total
             else:

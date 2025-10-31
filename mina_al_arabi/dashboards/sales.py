@@ -135,7 +135,7 @@ class SalesDashboard(QWidget):
     def _on_mode_changed(self):
         mode = self.mode_combo.currentText()
         if mode == "للمحل":
-            self.submit_btn.setText("حفظ الفاتورة")
+            self.submit_btn.setText("تسجيل الفاتورة")
         else:
             self.submit_btn.setText("طباعة إيصال")
 
@@ -245,11 +245,11 @@ class SalesDashboard(QWidget):
 
         # Branch behavior by mode
         if mode == "عميل":
-            # Normal customer sale -> print receipt
+            # Normal customer sale -> employee should have no effect
             try:
                 sale_id = self.db.create_sale(
                     date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    employee_id=employee_id,
+                    employee_id=None,  # ignore employee
                     customer_name=customer_name,
                     is_shop=0,
                     total=total,
@@ -295,41 +295,21 @@ class SalesDashboard(QWidget):
                 QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
 
         elif mode == "للمحل":
-            # Internal expense for shop: replace printing with saving
+            # Internal purchase: record invoice to expenses by item name; no printing
             saved_any = False
-            # Record as product sale with buyer_type='shop' for consistency with admin report hooks
-            try:
-                sale_id = self.db.create_sale(
-                    date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    employee_id=None,
-                    customer_name=None,
-                    is_shop=1,
-                    total=total,
-                    discount_percent=0,  # shop purchases shouldn't carry customer discount
-                    sale_type="product",
-                    buyer_type="shop",
-                    material_deduction=0.0,
-                    shift_id=shift_id,
-                )
-                for pid, name, price, qty in items:
-                    self.db.add_sale_item(sale_id, name, price, qty)
-                saved_any = True
-            except Exception:
-                pass
-            # Also record as expenses (category: مشتريات للمحل)
             try:
                 for pid, name, price, qty in items:
-                    self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name, shift_id=shift_id)
+                    self.db.add_expense(category=name, amount=price * qty, note=None, shift_id=shift_id)
                 saved_any = True
             except Exception:
                 pass
             if saved_any:
-                QMessageBox.information(self, "تم", "تم حفظ الفاتورة كمصاريف للمحل بدون طباعة.")
+                QMessageBox.information(self, "تم", "تم تسجيل الفاتورة كمصروفات للمحل بأسماء العناصر بدون طباعة.")
             else:
-                QMessageBox.warning(self, "تنبيه", "تعذر حفظ الفاتورة للمحل.")
+                QMessageBox.warning(self, "تنبيه", "تعذر تسجيل الفاتورة للمحل.")
 
         elif mode == "للموظف":
-            # Assign to specific employee: recorded under employee with buyer_type='employee'
+            # Record under employee for tracking, but not counted towards balance/commission
             if employee_id is None:
                 QMessageBox.warning(self, "تنبيه", "اختر الموظف أولاً.")
                 return
@@ -342,7 +322,7 @@ class SalesDashboard(QWidget):
                     total=total,
                     discount_percent=discount_percent,
                     sale_type="product",
-                    buyer_type="employee",
+                    buyer_type="employee",  # used by reports to exclude from balance/commission
                     material_deduction=material_deduction,
                     shift_id=shift_id,
                 )
@@ -355,7 +335,7 @@ class SalesDashboard(QWidget):
                             pass
             except Exception:
                 pass
-            # Optionally print receipt for employee transaction
+            # Optionally save a text receipt (no business impact)
             ts = datetime.now()
             basename = f"receipt_employee_{ts.strftime('%Y%m%d_%H%M%S')}"
             txt_path = os.path.join(receipts_dir(), f"{basename}.txt")
@@ -370,13 +350,11 @@ class SalesDashboard(QWidget):
             total_after = total * (1 - discount_percent/100.0)
             lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
             receipt_text = "\n".join(lines)
-            with open(txt_path, "w", encoding="utf-8") as ftxt:
-                ftxt.write(receipt_text)
             try:
-                print_receipt(receipt_text)
-                QMessageBox.information(self, "تم", f"تم حفظ وطباعة إيصال الموظف.\n{txt_path}")
-            except Exception as e:
-                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
+                with open(txt_path, "w", encoding="utf-8") as ftxt:
+                    ftxt.write(receipt_text)
+            except Exception:
+                pass
 
         # Reset common fields
         self.invoice_list.clear()
