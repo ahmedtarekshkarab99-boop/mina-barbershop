@@ -92,10 +92,12 @@ class AdminReportDashboard(QWidget):
         # Totals
         total_services = self.db.sum_services_in_month(year, month)
         total_shop_expenses = self.db.sum_expenses_category_in_month("مشتريات للمحل", year, month)
+        total_material_deductions = self.db.sum_material_deductions_in_month(year, month)
 
         self.summary_label.setText(
             f"إجمالي الخدمات (الشهر): {format_amount(total_services)} ج.م | "
-            f"إجمالي مصاريف مشتريات المحل: {format_amount(total_shop_expenses)} ج.م"
+            f"إجمالي مصاريف مشتريات المحل: {format_amount(total_shop_expenses)} ج.م | "
+            f"إجمالي خصومات المواد (مخفي): {format_amount(total_material_deductions)} ج.م"
         )
 
         # Shop purchases list

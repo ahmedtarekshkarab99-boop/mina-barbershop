@@ -268,7 +268,7 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            SELECT id, date, total, discount_percent, type, is_shop, buyer_type
+            SELECT id, date, total, discount_percent, type, is_shop, buyer_type, material_deduction
             FROM sales
             WHERE employee_id = ? AND substr(date,1,10) = ? AND cleared = 0
             ORDER BY date ASC
@@ -283,6 +283,7 @@ class Database:
                     "type": r[4],
                     "is_shop": r[5],
                     "buyer_type": r[6],
+                    "material_deduction": r[7],
                 } for r in rows
             ]
 
@@ -290,7 +291,7 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            SELECT id, date, total, discount_percent, type, is_shop, buyer_type
+            SELECT id, date, total, discount_percent, type, is_shop, buyer_type, material_deduction
             FROM sales
             WHERE employee_id = ? AND substr(date,1,4) = ? AND substr(date,6,2) = ? AND cleared = 0
             ORDER BY date ASC
@@ -305,6 +306,7 @@ class Database:
                     "type": r[4],
                     "is_shop": r[5],
                     "buyer_type": r[6],
+                    "material_deduction": r[7],
                 } for r in rows
             ]
 
@@ -555,6 +557,17 @@ class Database:
             FROM sales
             WHERE date BETWEEN ? AND ?
             """, (start_date, end_date))
+            val = c.fetchone()[0]
+            return float(val or 0)
+
+    def sum_material_deductions_in_month(self, year: int, month: int) -> float:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT COALESCE(SUM(material_deduction), 0)
+            FROM sales
+            WHERE substr(date,1,4) = ? AND substr(date,6,2) = ?
+            """, (str(year), f"{month:02d}"))
             val = c.fetchone()[0]
             return float(val or 0)
 
