@@ -8,7 +8,7 @@ from datetime import datetime
 from mina_al_arabi.db import Database
 
 
-CATEGORIES = ["إيجار", "كهرباء", "مياه", "إنترنت", "مشتريات للمحل", "أخرى"]
+CATEGORIES = ["إيجار", "كهرباء", "مياه", "إنترنت", "مشتريات للمحل", "مصاريف مينا"]
 
 
 def format_amount(amount: float) -> str:
@@ -91,7 +91,7 @@ class ExpensesDashboard(QWidget):
         self.summary_label.setFont(self.body_font)
         layout.addWidget(self.summary_label, alignment=Qt.AlignRight)
 
-        self.others_summary_label = QLabel("إجمالي بند أخرى: 0 ج.م")
+        self.others_summary_label = QLabel("إجمالي بند مصاريف مينا: 0 ج.م")
         self.others_summary_label.setFont(self.body_font)
         layout.addWidget(self.others_summary_label, alignment=Qt.AlignRight)
 
@@ -130,7 +130,7 @@ class ExpensesDashboard(QWidget):
         rows = self.db.list_expenses()
         self.table.setRowCount(0)
         total = 0.0
-        others_total = 0.0
+        mina_total = 0.0
         for rid, date, cat, amount, note in rows:
             r = self.table.rowCount()
             self.table.insertRow(r)
@@ -142,13 +142,15 @@ class ExpensesDashboard(QWidget):
             except Exception:
                 date_display = date
             self.table.setItem(r, 1, QTableWidgetItem(date_display))
-            # Show note instead of "أخرى" when present
-            cat_display = note if (cat == "أخرى" and note) else cat
+            # Map legacy "أخرى" to "مصاريف مينا" and show note when present
+            is_mina = cat in {"أخرى", "مصاريف مينا"}
+            display_cat = "مصاريف مينا" if cat == "أخرى" else cat
+            cat_display = note if (is_mina and note) else display_cat
             self.table.setItem(r, 2, QTableWidgetItem(cat_display))
             self.table.setItem(r, 3, QTableWidgetItem(format_amount(amount)))
             total += amount
-            if cat == "أخرى":
-                others_total += amount
+            if is_mina:
+                mina_total += amount
         self.table.resizeColumnsToContents()
         self.summary_label.setText(f"إجمالي المصاريف: {format_amount(total)} ج.م")
-        self.others_summary_label.setText(f"إجمالي بند أخرى: {format_amount(others_total)} ج.م")
+        self.others_summary_label.setText(f"إجمالي بند مصاريف مينا: {format_amount(mina_total)} ج.م")
