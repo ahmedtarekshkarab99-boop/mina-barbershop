@@ -13,7 +13,6 @@ try:
     import mina_al_arabi.dashboards.expenses as _dash_expenses
     import mina_al_arabi.dashboards.reports as _dash_reports
     import mina_al_arabi.dashboards.admin_report as _dash_admin
-    import mina_al_arabi.dashboards.shift as _dash_shift
 except Exception:
     pass
 

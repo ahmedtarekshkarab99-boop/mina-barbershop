@@ -203,14 +203,7 @@ class CashierDashboard(QWidget):
             items.append((name, price, qty))
         total_after = total * (1 - discount_percent/100.0)
 
-        # Link to active shift
-        try:
-            sh = self.db.get_active_shift()
-            shift_id = sh[0] if sh else None
-        except Exception:
-            shift_id = None
-
-        # Persist sale (service)
+        # Persist sale (service) without shifts
         try:
             sale_id = self.db.create_sale(
                 date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -222,7 +215,7 @@ class CashierDashboard(QWidget):
                 sale_type="service",
                 buyer_type="customer",
                 material_deduction=material_deduction,
-                shift_id=shift_id,
+                shift_id=None,
             )
             for name, price, qty in items:
                 self.db.add_sale_item(sale_id, name, price, qty)

@@ -9,6 +9,5 @@ try:
     import mina_al_arabi.dashboards.attendance  # noqa: F401
     import mina_al_arabi.dashboards.reports  # noqa: F401
     import mina_al_arabi.dashboards.admin_report  # noqa: F401
-    import mina_al_arabi.dashboards.shift  # noqa: F401
 except Exception:
     pass
