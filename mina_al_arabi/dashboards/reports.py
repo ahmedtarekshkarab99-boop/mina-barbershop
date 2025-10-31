@@ -113,22 +113,31 @@ class ReportsDashboard(QWidget):
         total_products = 0.0
         total_deductions = 0.0
 
-        # Sales entries
+        # Sales entries (apply visible discount and hidden material deduction)
         for s in sales:
             i = self.table.rowCount()
             self.table.insertRow(i)
             desc = "فاتورة خدمات" if s["type"] == "service" else "فاتورة مبيعات"
+            # Effective value after visible discount and hidden material deduction
+            discount_percent = int(s.get("discount_percent") or 0)
+            material_deduction = float(s.get("material_deduction") or 0.0)
+            effective_total = float(s["total"]) * (1 - discount_percent / 100.0)
+            effective_total -= material_deduction
+            if effective_total < 0:
+                effective_total = 0.0
+
             if s.get("buyer_type") == "employee":
-                # Treat products for employee as deduction
+                # Treat products for employee as deduction (full effective amount)
                 desc = "خصم (منتج للموظف)"
-                total_deductions += s["total"]
+                total_deductions += effective_total
             elif s["type"] == "service":
-                total_services += s["total"]
+                total_services += effective_total
             else:
-                total_products += s["total"]
+                total_products += effective_total
+
             self.table.setItem(i, 0, QTableWidgetItem(desc))
             self.table.setItem(i, 1, QTableWidgetItem(format_time_ar_str(s["date"])))
-            self.table.setItem(i, 2, QTableWidgetItem(format_amount(s["total"])))
+            self.table.setItem(i, 2, QTableWidgetItem(format_amount(effective_total)))
 
         # Loan deductions
         for lid, date, amount, note in loans:
