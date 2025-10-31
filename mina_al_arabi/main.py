@@ -71,6 +71,12 @@ def main():
 
     
 
+    # Shift (أول تبويب)
+    def _shift_first_factory():
+        from mina_al_arabi.dashboards.shift import ShiftDashboard
+        return ShiftDashboard(db)
+    shift_tab = add_tab_or_placeholder(_shift_first_factory, "الشفتات")
+
     # Cashier
     def _cashier_factory():
         from mina_al_arabi.dashboards.cashier import CashierDashboard
@@ -106,18 +112,6 @@ def main():
         from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
         return AdminReportDashboard(db)
     admin_tab = add_tab_or_placeholder(_admin_factory, "إدارة")
-
-    # Shift
-    def _shift_factory():
-        from mina_al_arabi.dashboards.shift import ShiftDashboard
-        return ShiftDashboard(db)
-    shift_tab = add_tab_or_placeholder(_shift_factory, "الشفتات")
-
-    # Shift
-    def _shift_factory():
-        from mina_al_arabi.dashboards.shift import ShiftDashboard
-        return ShiftDashboard(db)
-    shift_tab = add_tab_or_placeholder(_shift_factory, "الشفتات")
 
     # Management menu
     from PySide6.QtWidgets import QMenuBar, QMenu, QInputDialog, QMessageBox
