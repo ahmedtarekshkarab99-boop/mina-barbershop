@@ -8,7 +8,6 @@ from mina_al_arabi.db import Database
 # Hint imports for PyInstaller static analysis to ensure bundling of dashboards.
 # Wrapped in try/except to avoid crashing if any module is missing during source runs.
 try:
-    import mina_al_arabi.dashboards.home as _dash_home
     import mina_al_arabi.dashboards.inventory as _dash_inventory
     import mina_al_arabi.dashboards.expenses as _dash_expenses
     import mina_al_arabi.dashboards.reports as _dash_reports
@@ -68,11 +67,7 @@ def main():
             tabs.addTab(ph, title)
             return None
 
-    # Home
-    def _home_factory():
-        from mina_al_arabi.dashboards.home import HomeDashboard
-        return HomeDashboard(db)
-    home_tab = add_tab_or_placeholder(_home_factory, "الرئيسية")
+    
 
     
 
@@ -92,7 +87,7 @@ def main():
     def _inventory_factory():
         from mina_al_arabi.dashboards.inventory import InventoryDashboard
         return InventoryDashboard(db)
-    inventory_tab = add_tab_or_placeholder(_inventory_factory, "المنتجات والخدمات")
+    inventory_tab = add_tab_or_placeholder(_inventory_factory, "المخزن")
 
     # Expenses
     def _expenses_factory():

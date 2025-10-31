@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QPushButton, QTableWidget,
-    QTableWidgetItem
+    QTableWidgetItem, QInputDialog
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
@@ -69,6 +69,11 @@ class InventoryDashboard(QWidget):
         delete_btn.clicked.connect(self.delete_selected_product)
         action_row.addWidget(delete_btn)
 
+        edit_btn = QPushButton("تعديل الكمية")
+        edit_btn.setFont(self.body_font)
+        edit_btn.clicked.connect(self.edit_selected_product_quantity)
+        action_row.addWidget(edit_btn)
+
         layout.addLayout(action_row)
 
         self.load_products()
@@ -98,6 +103,35 @@ class InventoryDashboard(QWidget):
             self.load_products()
         except ValueError:
             pass
+
+    def edit_selected_product_quantity(self):
+        row = self.table.currentRow()
+        if row < 0:
+            return
+        pid_item = self.table.item(row, 0)
+        qty_item = self.table.item(row, 3)
+        if not pid_item or not qty_item:
+            return
+        try:
+            pid = int(pid_item.text())
+            current_qty = int(qty_item.text())
+        except ValueError:
+            return
+
+        # Ask for new quantity
+        new_qty, ok = QInputDialog.getInt(self, "تعديل الكمية", "أدخل الكمية الجديدة:", value=current_qty, min=0, max=100000)
+        if not ok:
+            return
+
+        # Compute delta and update
+        delta = new_qty - current_qty
+        try:
+            if delta != 0:
+                self.db.update_product_qty(pid, delta)
+            self.load_products()
+        except Exception:
+            # On error, keep UI stable
+            self.load_products()
 
     def load_products(self):
         products = self.db.list_products()
