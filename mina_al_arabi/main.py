@@ -9,8 +9,6 @@ from mina_al_arabi.db import Database
 # Wrapped in try/except to avoid crashing if any module is missing during source runs.
 try:
     import mina_al_arabi.dashboards.home as _dash_home
-    import mina_al_arabi.dashboards.cashier as _dash_cashier
-    import mina_al_arabi.dashboards.sales as _dash_sales
     import mina_al_arabi.dashboards.inventory as _dash_inventory
     import mina_al_arabi.dashboards.expenses as _dash_expenses
     import mina_al_arabi.dashboards.reports as _dash_reports
@@ -76,24 +74,7 @@ def main():
         return HomeDashboard(db)
     home_tab = add_tab_or_placeholder(_home_factory, "الرئيسية")
 
-    # Cashier
-    def _cashier_factory():
-        try:
-            # Use pre-imported module if available (hints PyInstaller to bundle)
-            return _dash_cashier.CashierDashboard(db)  # type: ignore[name-defined]
-        except Exception:
-            from mina_al_arabi.dashboards.cashier import CashierDashboard
-            return CashierDashboard(db)
-    cashier_tab = add_tab_or_placeholder(_cashier_factory, "الكاشير")
-
-    # Sales
-    def _sales_factory():
-        try:
-            return _dash_sales.SalesDashboard(db)  # type: ignore[name-defined]
-        except Exception:
-            from mina_al_arabi.dashboards.sales import SalesDashboard
-            return SalesDashboard(db)
-    sales_tab = add_tab_or_placeholder(_sales_factory, "المبيعات")
+    
 
     # Inventory
     def _inventory_factory():
@@ -160,10 +141,6 @@ def main():
         try:
             db.add_employee(name.strip())
             QMessageBox.information(window, "تم", "تمت إضافة الموظف.")
-            if cashier_tab:
-                cashier_tab._load_employees()
-            if sales_tab:
-                sales_tab._load_employees()
         except Exception as e:
             QMessageBox.critical(window, "خطأ", f"تعذرت إضافة الموظف:\n{e}")
 
@@ -178,8 +155,6 @@ def main():
         try:
             db.delete_service_by_name(name.strip())
             QMessageBox.information(window, "تم", "تم حذف الخدمة.")
-            if cashier_tab:
-                cashier_tab._load_services()
         except Exception as e:
             QMessageBox.critical(window, "خطأ", f"تعذر حذف الخدمة:\n{e}")
 
@@ -194,10 +169,6 @@ def main():
         try:
             db.delete_employee_by_name(name.strip())
             QMessageBox.information(window, "تم", "تم حذف الموظف.")
-            if cashier_tab:
-                cashier_tab._load_employees()
-            if sales_tab:
-                sales_tab._load_employees()
         except Exception as e:
             QMessageBox.critical(window, "خطأ", f"تعذر حذف الموظف:\n{e}")
 
@@ -216,8 +187,6 @@ def main():
             price = float(price_text.strip())
             db.update_service_price(name.strip(), price)
             QMessageBox.information(window, "تم", "تم تعديل السعر.")
-            if cashier_tab:
-                cashier_tab._load_services()
         except Exception as e:
             QMessageBox.critical(window, "خطأ", f"تعذر تعديل السعر:\n{e}")
 
@@ -244,12 +213,6 @@ def main():
                 inventory_tab.load_products()
             if expenses_tab:
                 expenses_tab.load_expenses()
-            if cashier_tab:
-                cashier_tab._load_employees()
-                cashier_tab._load_services()
-            if sales_tab:
-                sales_tab._load_employees()
-                sales_tab.load_products()
             QMessageBox.information(window, "تم", "تم تحديث البرنامج.")
         except Exception:
             QMessageBox.information(window, "تم", "تم تحديث البرنامج.")

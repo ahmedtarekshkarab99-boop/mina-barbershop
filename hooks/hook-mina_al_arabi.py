@@ -3,7 +3,6 @@ hiddenimports = [
     "mina_al_arabi.db",
     "mina_al_arabi.main",
     "mina_al_arabi.dashboards",
-    "mina_al_arabi.dashboards.cashier",
     "mina_al_arabi.dashboards.inventory",
     "mina_al_arabi.dashboards.expenses",
     "mina_al_arabi.dashboards.attendance",
