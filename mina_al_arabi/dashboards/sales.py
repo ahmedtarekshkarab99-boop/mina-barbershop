@@ -66,6 +66,15 @@ class SalesDashboard(QWidget):
         title_invoice.setFont(self.header_font)
         right.addWidget(title_invoice)
 
+        # Invoice type selector
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("نوع الفاتورة:"))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["عميل", "للمحل", "للموظف"])
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        mode_row.addWidget(self.mode_combo)
+        right.addLayout(mode_row)
+
         buyer_layout = QHBoxLayout()
         buyer_layout.addWidget(QLabel("اسم العميل"))
         self.customer_input = QLineEdit()
@@ -121,6 +130,14 @@ class SalesDashboard(QWidget):
 
         self._load_employees()
         self.load_products()
+        self._on_mode_changed()
+
+    def _on_mode_changed(self):
+        mode = self.mode_combo.currentText()
+        if mode == "للمحل":
+            self.submit_btn.setText("حفظ الفاتورة")
+        else:
+            self.submit_btn.setText("طباعة إيصال")
 
     def _load_employees(self):
         self.employee_combo.clear()
@@ -215,65 +232,153 @@ class SalesDashboard(QWidget):
             discount_percent = int(discount_text[:-1])
         material_deduction = float(self.material_deduction_input.value())
 
+        mode = self.mode_combo.currentText()
         customer_name = self.customer_input.text().strip() or "غير محدد"
         employee_id = self.employee_combo.currentData() if self.employee_combo.currentIndex() >= 0 else None
 
-        # Persist sale (product) and link to active shift if present
+        # Link to active shift if present
         try:
             sh = self.db.get_active_shift()
             shift_id = sh[0] if sh else None
         except Exception:
             shift_id = None
 
-        try:
-            sale_id = self.db.create_sale(
-                date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                employee_id=employee_id,
-                customer_name=customer_name,
-                is_shop=0,
-                total=total,
-                discount_percent=discount_percent,
-                sale_type="product",
-                buyer_type="customer",
-                material_deduction=material_deduction,
-                shift_id=shift_id,
-            )
-            for pid, name, price, qty in items:
-                self.db.add_sale_item(sale_id, name, price, qty)
-                if pid:
-                    try:
-                        self.db.update_product_qty(pid, -qty)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+        # Branch behavior by mode
+        if mode == "عميل":
+            # Normal customer sale -> print receipt
+            try:
+                sale_id = self.db.create_sale(
+                    date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    employee_id=employee_id,
+                    customer_name=customer_name,
+                    is_shop=0,
+                    total=total,
+                    discount_percent=discount_percent,
+                    sale_type="product",
+                    buyer_type="customer",
+                    material_deduction=material_deduction,
+                    shift_id=shift_id,
+                )
+                for pid, name, price, qty in items:
+                    self.db.add_sale_item(sale_id, name, price, qty)
+                    if pid:
+                        try:
+                            self.db.update_product_qty(pid, -qty)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
-        ts = datetime.now()
-        basename = f"receipt_product_{ts.strftime('%Y%m%d_%H%M%S')}"
-        txt_path = os.path.join(receipts_dir(), f"{basename}.txt")
+            ts = datetime.now()
+            basename = f"receipt_product_{ts.strftime('%Y%m%d_%H%M%S')}"
+            txt_path = os.path.join(receipts_dir(), f"{basename}.txt")
 
-        lines = [
-            "صالون مينا العربي",
-            f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}",
-            f"المشتري: {customer_name}",
-            "-" * 30
-        ]
-        for _, name, price, qty in items:
-            lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-        total_after = total * (1 - discount_percent/100.0)
-        lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
-        receipt_text = "\n".join(lines)
+            lines = [
+                "صالون مينا العربي",
+                f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}",
+                f"المشتري: {customer_name}",
+                "-" * 30
+            ]
+            for _, name, price, qty in items:
+                lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
+            total_after = total * (1 - discount_percent/100.0)
+            lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
+            receipt_text = "\n".join(lines)
 
-        with open(txt_path, "w", encoding="utf-8") as ftxt:
-            ftxt.write(receipt_text)
+            with open(txt_path, "w", encoding="utf-8") as ftxt:
+                ftxt.write(receipt_text)
 
-        try:
-            print_receipt(receipt_text)
-            QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{txt_path}")
-        except Exception as e:
-            QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
+            try:
+                print_receipt(receipt_text)
+                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{txt_path}")
+            except Exception as e:
+                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
 
-        # Reset
+        elif mode == "للمحل":
+            # Internal expense for shop: replace printing with saving
+            saved_any = False
+            # Record as product sale with buyer_type='shop' for consistency with admin report hooks
+            try:
+                sale_id = self.db.create_sale(
+                    date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    employee_id=None,
+                    customer_name=None,
+                    is_shop=1,
+                    total=total,
+                    discount_percent=0,  # shop purchases shouldn't carry customer discount
+                    sale_type="product",
+                    buyer_type="shop",
+                    material_deduction=0.0,
+                    shift_id=shift_id,
+                )
+                for pid, name, price, qty in items:
+                    self.db.add_sale_item(sale_id, name, price, qty)
+                saved_any = True
+            except Exception:
+                pass
+            # Also record as expenses (category: مشتريات للمحل)
+            try:
+                for pid, name, price, qty in items:
+                    self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name, shift_id=shift_id)
+                saved_any = True
+            except Exception:
+                pass
+            if saved_any:
+                QMessageBox.information(self, "تم", "تم حفظ الفاتورة كمصاريف للمحل بدون طباعة.")
+            else:
+                QMessageBox.warning(self, "تنبيه", "تعذر حفظ الفاتورة للمحل.")
+
+        elif mode == "للموظف":
+            # Assign to specific employee: recorded under employee with buyer_type='employee'
+            if employee_id is None:
+                QMessageBox.warning(self, "تنبيه", "اختر الموظف أولاً.")
+                return
+            try:
+                sale_id = self.db.create_sale(
+                    date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    employee_id=employee_id,
+                    customer_name=None,
+                    is_shop=0,
+                    total=total,
+                    discount_percent=discount_percent,
+                    sale_type="product",
+                    buyer_type="employee",
+                    material_deduction=material_deduction,
+                    shift_id=shift_id,
+                )
+                for pid, name, price, qty in items:
+                    self.db.add_sale_item(sale_id, name, price, qty)
+                    if pid:
+                        try:
+                            self.db.update_product_qty(pid, -qty)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            # Optionally print receipt for employee transaction
+            ts = datetime.now()
+            basename = f"receipt_employee_{ts.strftime('%Y%m%d_%H%M%S')}"
+            txt_path = os.path.join(receipts_dir(), f"{basename}.txt")
+            lines = [
+                "صالون مينا العربي",
+                f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}",
+                f"الموظف: {self.employee_combo.currentText()}",
+                "-" * 30
+            ]
+            for _, name, price, qty in items:
+                lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
+            total_after = total * (1 - discount_percent/100.0)
+            lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
+            receipt_text = "\n".join(lines)
+            with open(txt_path, "w", encoding="utf-8") as ftxt:
+                ftxt.write(receipt_text)
+            try:
+                print_receipt(receipt_text)
+                QMessageBox.information(self, "تم", f"تم حفظ وطباعة إيصال الموظف.\n{txt_path}")
+            except Exception as e:
+                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
+
+        # Reset common fields
         self.invoice_list.clear()
         self.customer_input.clear()
         self.material_deduction_input.setValue(0)
