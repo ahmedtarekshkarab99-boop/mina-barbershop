@@ -87,7 +87,7 @@ def main():
     def _inventory_factory():
         from mina_al_arabi.dashboards.inventory import InventoryDashboard
         return InventoryDashboard(db)
-    inventory_tab = add_tab_or_placeholder(_inventory_factory, "المنتجات والخدمات")
+    inventory_tab = add_tab_or_placeholder(_inventory_factory, "المخزن")
 
     # Expenses
     def _expenses_factory():
