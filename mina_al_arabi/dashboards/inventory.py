@@ -134,8 +134,13 @@ class InventoryDashboard(QWidget):
             return
 
         # Ask for new quantity
-        new_qty, ok = QInputDialog.getInt(self, "تعديل الكمية", f"أدخل الكمية الجديدة للمنتج ({name_item.text()}):", value=current_qty, min=0, max=100000)
+        qty_str, ok = QInputDialog.getText(self, "تعديل الكمية", f"أدخل الكمية الجديدة للمنتج ({name_item.text()}):", text=str(current_qty))
         if not ok:
+            return
+        try:
+            new_qty = int(qty_str.strip())
+        except Exception:
+            QMessageBox.warning(self, "تنبيه", "يرجى إدخال رقم صحيح للكمية.")
             return
 
         # Compute delta and update only this product
@@ -180,12 +185,17 @@ class InventoryDashboard(QWidget):
             QMessageBox.warning(self, "تنبيه", "القيم الحالية غير صالحة.")
             return
 
-        new_price, ok = QInputDialog.getInt(self, "تعديل السعر", f"أدخل السعر الجديد للمنتج ({name_item.text()}) (ج.م):", value=current_price, min=0, max=100000)
+        price_str, ok = QInputDialog.getText(self, "تعديل السعر", f"أدخل السعر الجديد للمنتج ({name_item.text()}) (ج.م):", text=str(current_price))
         if not ok:
+            return
+        try:
+            new_price = float(price_str.strip())
+        except Exception:
+            QMessageBox.warning(self, "تنبيه", "يرجى إدخال رقم صحيح للسعر.")
             return
 
         try:
-            self.db.update_product_price(pid, float(new_price))
+            self.db.update_product_price(pid, new_price)
             self.load_products()
             QMessageBox.information(self, "تم", "تم تعديل السعر بنجاح.")
         except Exception as e:
