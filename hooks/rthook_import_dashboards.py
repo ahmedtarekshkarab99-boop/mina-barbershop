@@ -2,6 +2,8 @@
 # This runs at application start inside the frozen app.
 try:
     import mina_al_arabi.dashboards.home  # noqa: F401
+    import mina_al_arabi.dashboards.cashier  # noqa: F401
+    import mina_al_arabi.dashboards.sales  # noqa: F401
     import mina_al_arabi.dashboards.inventory  # noqa: F401
     import mina_al_arabi.dashboards.expenses  # noqa: F401
     import mina_al_arabi.dashboards.attendance  # noqa: F401
