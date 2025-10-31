@@ -78,14 +78,21 @@ def main():
 
     # Cashier
     def _cashier_factory():
-        from mina_al_arabi.dashboards.cashier import CashierDashboard
-        return CashierDashboard(db)
+        try:
+            # Use pre-imported module if available (hints PyInstaller to bundle)
+            return _dash_cashier.CashierDashboard(db)  # type: ignore[name-defined]
+        except Exception:
+            from mina_al_arabi.dashboards.cashier import CashierDashboard
+            return CashierDashboard(db)
     cashier_tab = add_tab_or_placeholder(_cashier_factory, "الكاشير")
 
     # Sales
     def _sales_factory():
-        from mina_al_arabi.dashboards.sales import SalesDashboard
-        return SalesDashboard(db)
+        try:
+            return _dash_sales.SalesDashboard(db)  # type: ignore[name-defined]
+        except Exception:
+            from mina_al_arabi.dashboards.sales import SalesDashboard
+            return SalesDashboard(db)
     sales_tab = add_tab_or_placeholder(_sales_factory, "المبيعات")
 
     # Inventory
