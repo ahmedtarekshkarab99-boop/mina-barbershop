@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QPushButton, QTableWidget,
-    QTableWidgetItem, QInputDialog
+    QTableWidgetItem, QInputDialog, QMessageBox, QAbstractItemView
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
@@ -57,7 +57,8 @@ class InventoryDashboard(QWidget):
         self.table.setStyleSheet("QTableWidget { gridline-color: #D4AF37; }")
         # Select whole rows for clearer editing of a single product
         try:
-            self.table.setSelectionBehavior(self.table.SelectRows)
+            self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         except Exception:
             pass
         # Expand to fill available space
@@ -117,30 +118,35 @@ class InventoryDashboard(QWidget):
     def edit_selected_product_quantity(self):
         row = self.table.currentRow()
         if row < 0:
+            QMessageBox.warning(self, "تنبيه", "اختر منتجاً أولاً من الجدول.")
             return
         pid_item = self.table.item(row, 0)
         qty_item = self.table.item(row, 3)
+        name_item = self.table.item(row, 1)
         if not pid_item or not qty_item:
+            QMessageBox.warning(self, "تنبيه", "تعذر قراءة المنتج المحدد.")
             return
         try:
             pid = int(pid_item.text())
             current_qty = int(qty_item.text())
         except ValueError:
+            QMessageBox.warning(self, "تنبيه", "القيم الحالية غير صالحة.")
             return
 
         # Ask for new quantity
-        new_qty, ok = QInputDialog.getInt(self, "تعديل الكمية", "أدخل الكمية الجديدة:", value=current_qty, min=0, max=100000)
+        new_qty, ok = QInputDialog.getInt(self, "تعديل الكمية", f"أدخل الكمية الجديدة للمنتج ({name_item.text()}):", value=current_qty, min=0, max=100000)
         if not ok:
             return
 
-        # Compute delta and update
+        # Compute delta and update only this product
         delta = new_qty - current_qty
         try:
             if delta != 0:
                 self.db.update_product_qty(pid, delta)
             self.load_products()
-        except Exception:
-            # On error, keep UI stable
+            QMessageBox.information(self, "تم", "تم تعديل الكمية بنجاح.")
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ", f"تعذر تعديل الكمية:\n{e}")
             self.load_products()
 
     def load_products(self):
@@ -159,22 +165,29 @@ class InventoryDashboard(QWidget):
     def edit_selected_product_price(self):
         row = self.table.currentRow()
         if row < 0:
+            QMessageBox.warning(self, "تنبيه", "اختر منتجاً أولاً من الجدول.")
             return
         pid_item = self.table.item(row, 0)
         price_item = self.table.item(row, 2)
+        name_item = self.table.item(row, 1)
         if not pid_item or not price_item:
+            QMessageBox.warning(self, "تنبيه", "تعذر قراءة المنتج المحدد.")
             return
         try:
             pid = int(pid_item.text())
             current_price = int(price_item.text())
         except ValueError:
+            QMessageBox.warning(self, "تنبيه", "القيم الحالية غير صالحة.")
             return
 
-        new_price, ok = QInputDialog.getInt(self, "تعديل السعر", "أدخل السعر الجديد (ج.م):", value=current_price, min=0, max=100000)
+        new_price, ok = QInputDialog.getInt(self, "تعديل السعر", f"أدخل السعر الجديد للمنتج ({name_item.text()}) (ج.م):", value=current_price, min=0, max=100000)
         if not ok:
             return
 
         try:
             self.db.update_product_price(pid, float(new_price))
-        finally:
+            self.load_products()
+            QMessageBox.information(self, "تم", "تم تعديل السعر بنجاح.")
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ", f"تعذر تعديل السعر:\n{e}")
             self.load_products()

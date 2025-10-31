@@ -61,8 +61,12 @@ class CashierDashboard(QWidget):
         title_invoice.setFont(self.header_font)
         right.addWidget(title_invoice)
 
-        # Top bar for employee selection
+        # Top bar for customer + employee selection
         top_bar = QHBoxLayout()
+        top_bar.addWidget(QLabel("اسم العميل"))
+        self.customer_input = QLineEdit()
+        self.customer_input.setFont(self.body_font)
+        top_bar.addWidget(self.customer_input)
         top_bar.addWidget(QLabel("اختر الموظف:"))
         self.employee_combo = QComboBox()
         top_bar.addWidget(self.employee_combo)
@@ -187,6 +191,7 @@ class CashierDashboard(QWidget):
 
         employee_id = self.employee_combo.currentData() if self.employee_combo.currentIndex() >= 0 else None
         employee_name = self.employee_combo.currentText() if self.employee_combo.currentIndex() >= 0 else ""
+        customer_name = (self.customer_input.text().strip() or "غير محدد")
 
         discount_text = self.discount_combo.currentText()
         discount_percent = 0
@@ -214,7 +219,7 @@ class CashierDashboard(QWidget):
             sale_id = self.db.create_sale(
                 date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 employee_id=employee_id,
-                customer_name=None,
+                customer_name=customer_name,
                 is_shop=0,
                 total=total,
                 discount_percent=discount_percent,
@@ -233,6 +238,7 @@ class CashierDashboard(QWidget):
         lines = []
         lines.append("صالون مينا العربي")
         lines.append(f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}")
+        lines.append(f"المشتري: {customer_name}")
         lines.append(f"الموظف: {employee_name}")
         lines.append("-" * 30)
         for name, price, qty in items:
@@ -254,5 +260,6 @@ class CashierDashboard(QWidget):
             QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{path}")
 
         self.invoice_list.clear()
+        self.customer_input.clear()
         self.material_deduction_input.setValue(0)
         self._update_total()
