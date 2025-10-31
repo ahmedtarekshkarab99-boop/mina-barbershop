@@ -215,6 +215,12 @@ class Database:
             c.execute("UPDATE products SET quantity = quantity + ? WHERE id = ?", (delta, product_id))
             conn.commit()
 
+    def update_product_price(self, product_id: int, new_price: float):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("UPDATE products SET price = ? WHERE id = ?", (new_price, product_id))
+            conn.commit()
+
     def list_products(self) -> List[Tuple[int, str, float, int]]:
         with self.connect() as conn:
             c = conn.cursor()
