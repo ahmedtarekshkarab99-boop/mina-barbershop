@@ -218,14 +218,13 @@ class SalesDashboard(QWidget):
         customer_name = self.customer_input.text().strip() or "غير محدد"
         employee_id = self.employee_combo.currentData() if self.employee_combo.currentIndex() >= 0 else None
 
-        # Link to active shift
+        # Persist sale (product) and link to active shift if present
         try:
             sh = self.db.get_active_shift()
             shift_id = sh[0] if sh else None
         except Exception:
             shift_id = None
 
-        # Persist sale (product)
         try:
             sale_id = self.db.create_sale(
                 date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

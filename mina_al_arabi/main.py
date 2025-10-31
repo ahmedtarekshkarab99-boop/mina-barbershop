@@ -118,6 +118,12 @@ def main():
         return ShiftDashboard(db)
     shift_tab = add_tab_or_placeholder(_shift_factory, "الشفتات")
 
+    # Shift
+    def _shift_factory():
+        from mina_al_arabi.dashboards.shift import ShiftDashboard
+        return ShiftDashboard(db)
+    shift_tab = add_tab_or_placeholder(_shift_factory, "الشفتات")
+
     # Management menu
     from PySide6.QtWidgets import QMenuBar, QMenu, QInputDialog, QMessageBox
     menubar = QMenuBar(window)

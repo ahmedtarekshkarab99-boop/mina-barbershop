@@ -10,4 +10,5 @@ hiddenimports = [
     "mina_al_arabi.dashboards.attendance",
     "mina_al_arabi.dashboards.reports",
     "mina_al_arabi.dashboards.admin_report",
+    "mina_al_arabi.dashboards.shift",
 ]

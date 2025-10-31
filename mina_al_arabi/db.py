@@ -320,6 +320,97 @@ class Database:
             """, (date, category, amount, note, shift_id))
             conn.commit()
 
+    # Shift helpers
+    def get_active_shift(self) -> Optional[Tuple[int, int, str, str, Optional[str], int]]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT id, shift_number, cashier_name, opened_at, closed_at, active
+            FROM shifts
+            WHERE active = 1
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+            row = c.fetchone()
+            return row if row else None
+
+    def open_shift(self, cashier_name: str) -> int:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self.connect() as conn:
+            c = conn.cursor()
+            # Next shift number
+            c.execute("SELECT COALESCE(MAX(shift_number), 0) FROM shifts")
+            next_num = (c.fetchone()[0] or 0) + 1
+            c.execute("""
+            INSERT INTO shifts(shift_number, cashier_name, opened_at, active)
+            VALUES (?, ?, ?, 1)
+            """, (next_num, cashier_name, now))
+            sid = c.lastrowid
+            conn.commit()
+            return sid
+
+    def close_shift(self, shift_id: int) -> None:
+        closed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            UPDATE shifts SET closed_at = ?, active = 0 WHERE id = ?
+            """, (closed, shift_id))
+            conn.commit()
+
+    def shift_summary(self, shift_id: int) -> Dict[str, Any]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("SELECT shift_number, cashier_name, opened_at, closed_at FROM shifts WHERE id = ?", (shift_id,))
+            sh = c.fetchone()
+            if not sh:
+                return {}
+            shift_number, cashier_name, opened_at, closed_at = sh
+            # Treat shift as the day of opened_at regardless of midnight crossover
+            shift_day = opened_at[:10]
+
+            # Sales totals (visible discount effect and counts)
+            c.execute("""
+            SELECT COALESCE(SUM(total), 0), COALESCE(SUM(total * (discount_percent/100.0)), 0),
+                   COALESCE(SUM(material_deduction), 0), COUNT(*)
+            FROM sales
+            WHERE substr(date,1,10) = ?
+            """, (shift_day,))
+            sum_total, sum_disc_amt, sum_mat_ded, inv_count = c.fetchone()
+            total_after_discount = float(sum_total or 0) - float(sum_disc_amt or 0)
+
+            # Expenses totals for the same day
+            c.execute("""
+            SELECT COALESCE(SUM(amount), 0)
+            FROM expenses
+            WHERE substr(date,1,10) = ?
+            """, (shift_day,))
+            exp_total = c.fetchone()[0] or 0
+
+            # Duration
+            try:
+                dt_open = datetime.strptime(opened_at, "%Y-%m-%d %H:%M:%S")
+                dt_close = datetime.strptime(closed_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S")
+                delta = dt_close - dt_open
+                hours = delta.seconds // 3600
+                minutes = (delta.seconds % 3600) // 60
+                duration = f"{hours:02d}:{minutes:02d}"
+            except Exception:
+                duration = ""
+
+            return {
+                "shift_number": shift_number,
+                "cashier_name": cashier_name,
+                "opened_at": opened_at,
+                "closed_at": closed_at,
+                "duration": duration,
+                "total_sales": float(total_after_discount or 0),
+                "invoice_count": int(inv_count or 0),
+                "customer_discounts": float(sum_disc_amt or 0),
+                "material_deductions": float(sum_mat_ded or 0),
+                "total_expenses": float(exp_total or 0),
+            }
+
     def list_expenses(self) -> List[Tuple[int, str, str, float, Optional[str]]]:
         with self.connect() as conn:
             c = conn.cursor()

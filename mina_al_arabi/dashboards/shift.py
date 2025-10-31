@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QLineEdit, QPushButton, QMessageBox
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
-from datetime import datetime
 from mina_al_arabi.db import Database
 
 
@@ -81,16 +80,16 @@ class ShiftDashboard(QWidget):
         summary = self.db.shift_summary(sid)
         # Build summary text
         txt = []
-        txt.append(f"شفت رقم: {summary['shift_number']}")
-        txt.append(f"الكاشير: {summary['cashier_name']}")
-        txt.append(f"البدء: {summary['opened_at']}")
-        txt.append(f"الانتهاء: {summary['closed_at']}")
-        txt.append(f"مدة الشفت: {summary['duration']}")
-        txt.append(f"إجمالي المبيعات: {int(summary['total_sales'])} ج.م")
-        txt.append(f"عدد الفواتير: {summary['invoice_count']}")
-        txt.append(f"خصومات العملاء: {int(summary['customer_discounts'])} ج.م")
-        txt.append(f"خصومات المواد: {int(summary['material_deductions'])} ج.م")
-        txt.append(f"إجمالي المصاريف: {int(summary['total_expenses'])} ج.م")
+        txt.append(f"شفت رقم: {summary.get('shift_number','')}")
+        txt.append(f"الكاشير: {summary.get('cashier_name','')}")
+        txt.append(f"البدء: {summary.get('opened_at','')}")
+        txt.append(f"الانتهاء: {summary.get('closed_at','')}")
+        txt.append(f"مدة الشفت: {summary.get('duration','')}")
+        txt.append(f"إجمالي المبيعات بعد الخصم: {int(summary.get('total_sales',0))} ج.م")
+        txt.append(f"عدد الفواتير: {summary.get('invoice_count',0)}")
+        txt.append(f"خصومات العملاء: {int(summary.get('customer_discounts',0))} ج.م")
+        txt.append(f"خصومات المواد: {int(summary.get('material_deductions',0))} ج.م")
+        txt.append(f"إجمالي المصاريف: {int(summary.get('total_expenses',0))} ج.م")
         report_text = "\n".join(txt)
         self.summary_label.setText(report_text)
         QMessageBox.information(self, "تم", "تم إغلاق الشفت وعرض التقرير.")
