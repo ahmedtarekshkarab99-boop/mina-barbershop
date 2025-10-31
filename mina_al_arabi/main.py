@@ -13,6 +13,7 @@ try:
     import mina_al_arabi.dashboards.expenses as _dash_expenses
     import mina_al_arabi.dashboards.reports as _dash_reports
     import mina_al_arabi.dashboards.admin_report as _dash_admin
+    import mina_al_arabi.dashboards.shift as _dash_shift
 except Exception:
     pass
 
@@ -110,6 +111,12 @@ def main():
         from mina_al_arabi.dashboards.admin_report import AdminReportDashboard
         return AdminReportDashboard(db)
     admin_tab = add_tab_or_placeholder(_admin_factory, "إدارة")
+
+    # Shift
+    def _shift_factory():
+        from mina_al_arabi.dashboards.shift import ShiftDashboard
+        return ShiftDashboard(db)
+    shift_tab = add_tab_or_placeholder(_shift_factory, "الشفتات")
 
     # Shift
     def _shift_factory():
