@@ -300,11 +300,28 @@ class SalesDashboard(QWidget):
                 QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
 
         elif mode == "للمحل":
-            # Internal shop usage: record expense under "مشتريات للمحل" and deduct from inventory
+            # Internal shop usage:
+            # 1) Create a sale with buyer_type='shop' so it reflects in admin totals
+            # 2) Record expense under "مشتريات للمحل" with item name in note
+            # 3) Deduct quantities from inventory
             saved_any = False
             try:
+                sale_id = self.db.create_sale(
+                    date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    employee_id=None,
+                    customer_name="المحل",
+                    is_shop=1,
+                    total=total,
+                    discount_percent=discount_percent,
+                    sale_type="product",
+                    buyer_type="shop",
+                    material_deduction=0.0,
+                    shift_id=shift_id,
+                )
                 for pid, name, price, qty in items:
-                    # Expense categorized for shop purchases with item name in note
+                    # Add sale items
+                    self.db.add_sale_item(sale_id, name, price, qty)
+                    # Record expense entry for shop purchases
                     self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name, shift_id=shift_id)
                     # Deduct from inventory
                     if pid:
@@ -316,7 +333,7 @@ class SalesDashboard(QWidget):
             except Exception:
                 pass
             if saved_any:
-                QMessageBox.information(self, "تم", "تم تسجيل استخدام المخزون للمحل وخصم الكميات من المخزن.")
+                QMessageBox.information(self, "تم", "تم تسجيل فاتورة للمحل وخصم الكميات من المخزن وإضافتها للمصاريف.")
             else:
                 QMessageBox.warning(self, "تنبيه", "تعذر تسجيل الاستخدام للمحل.")
 
