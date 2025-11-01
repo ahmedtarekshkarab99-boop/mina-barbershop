@@ -165,7 +165,12 @@ class SalesDashboard(QWidget):
             products = []
         products = list(reversed(products))
         row, col = 0, 0
-        for pid, name, price, qty in products:
+        for row_data in products:
+            # row_data may be (id, name, price, qty, purchase_price)
+            pid = row_data[0]
+            name = row_data[1]
+            price = row_data[2]
+            qty = row_data[3]
             if query and (query not in name.lower()):
                 continue
             label_text = f"{name}\n{format_amount(price)} ج.م\nالمتوفر: {qty}"
