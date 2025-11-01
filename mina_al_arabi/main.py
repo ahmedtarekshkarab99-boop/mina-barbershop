@@ -107,6 +107,12 @@ def main():
         return ReportsDashboard(db)
     reports_tab = add_tab_or_placeholder(_reports_factory, "التقارير")
 
+    # Suppliers
+    def _suppliers_factory():
+        from mina_al_arabi.dashboards.suppliers import SuppliersDashboard
+        return SuppliersDashboard(db)
+    suppliers_tab = add_tab_or_placeholder(_suppliers_factory, "الموردون")
+
     # Admin
     def _admin_factory():
         from mina_al_arabi.dashboards.admin_report import AdminReportDashboard

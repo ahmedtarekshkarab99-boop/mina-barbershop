@@ -95,6 +95,10 @@ class ExpensesDashboard(QWidget):
         self.shop_total_label.setFont(self.body_font)
         layout.addWidget(self.shop_total_label, alignment=Qt.AlignRight)
 
+        self.suppliers_payments_total_label = QLabel("إجمالي دفعات الموردين: 0 ج.م")
+        self.suppliers_payments_total_label.setFont(self.body_font)
+        layout.addWidget(self.suppliers_payments_total_label, alignment=Qt.AlignRight)
+
         self.others_summary_label = QLabel("إجمالي بند مصاريف مينا: 0 ج.م")
         self.others_summary_label.setFont(self.body_font)
         layout.addWidget(self.others_summary_label, alignment=Qt.AlignRight)
@@ -141,6 +145,7 @@ class ExpensesDashboard(QWidget):
         mina_total = 0.0
         shop_total = 0.0
         daily_labor_total = 0.0
+        suppliers_payments_total = 0.0
 
         for rid, date, cat, amount, note in rows:
             r = self.table.rowCount()
@@ -169,9 +174,7 @@ class ExpensesDashboard(QWidget):
             if cat in {"أخرى", "مصاريف مينا"}:
                 mina_total += amount
 
-            # Shop purchases total:
-            # - Primary: category explicitly 'مشتريات للمحل'
-            # - Fallback heuristic: entries created by Shop invoices where category is not a predefined category and note is empty
+            # Shop purchases total
             predefined = set(CATEGORIES)
             if cat == "مشتريات للمحل" or (note is None and cat not in predefined):
                 shop_total += amount
@@ -180,8 +183,13 @@ class ExpensesDashboard(QWidget):
             if cat == "يوميات العمالة":
                 daily_labor_total += amount
 
+            # Suppliers payments total
+            if cat == "دفعات الموردين":
+                suppliers_payments_total += amount
+
         self.table.resizeColumnsToContents()
         self.summary_label.setText(f"إجمالي المصاريف: {format_amount(total)} ج.م")
         self.shop_total_label.setText(f"🧾 إجمالي مشتريات المحل: {format_amount(shop_total)} ج.م")
         self.others_summary_label.setText(f"إجمالي بند مصاريف مينا: {format_amount(mina_total)} ج.م")
         self.daily_labor_total_label.setText(f"إجمالي يوميات العمالة: {format_amount(daily_labor_total)} ج.م")
+        self.suppliers_payments_total_label.setText(f"إجمالي دفعات الموردين: {format_amount(suppliers_payments_total)} ج.م")

@@ -95,6 +95,36 @@ class Database:
             )
             """)
 
+            # Suppliers
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS suppliers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                phone TEXT,
+                notes TEXT
+            )
+            """)
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS supplier_invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                supplier_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                total_amount REAL NOT NULL,
+                paid_amount REAL NOT NULL DEFAULT 0,
+                FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
+            )
+            """)
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS supplier_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                supplier_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                amount REAL NOT NULL,
+                note TEXT,
+                FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
+            )
+            """)
+
             # Attendance
             c.execute("""
             CREATE TABLE IF NOT EXISTS attendance (
@@ -424,6 +454,87 @@ class Database:
             c = conn.cursor()
             c.execute("SELECT id, date, category, amount, note FROM expenses ORDER BY date DESC")
             return c.fetchall()
+
+    # Suppliers
+    def add_supplier(self, name: str, phone: Optional[str] = None, notes: Optional[str] = None) -> int:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("INSERT OR IGNORE INTO suppliers(name, phone, notes) VALUES (?, ?, ?)", (name, phone, notes))
+            # fetch id
+            c.execute("SELECT id FROM suppliers WHERE name = ?", (name,))
+            row = c.fetchone()
+            conn.commit()
+            return int(row[0]) if row else 0
+
+    def list_suppliers(self) -> List[Tuple[int, str, Optional[str], Optional[str]]]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("SELECT id, name, phone, notes FROM suppliers ORDER BY name ASC")
+            return c.fetchall()
+
+    def add_supplier_invoice(self, supplier_id: int, total_amount: float, paid_amount: float = 0.0, date: Optional[str] = None) -> int:
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            INSERT INTO supplier_invoices(supplier_id, date, total_amount, paid_amount)
+            VALUES (?, ?, ?, ?)
+            """, (supplier_id, date, total_amount, paid_amount))
+            inv_id = c.lastrowid
+            conn.commit()
+            return inv_id
+
+    def add_supplier_payment(self, supplier_id: int, amount: float, note: Optional[str] = None, date: Optional[str] = None) -> int:
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            INSERT INTO supplier_payments(supplier_id, date, amount, note)
+            VALUES (?, ?, ?, ?)
+            """, (supplier_id, date, amount, note))
+            pay_id = c.lastrowid
+            # Sync to expenses (category: دفعات الموردين)
+            c.execute("""
+            INSERT INTO expenses(date, category, amount, note, shift_id)
+            VALUES (?, ?, ?, ?, NULL)
+            """, (date, "دفعات الموردين", amount, f"مورد: {self.get_supplier_name(supplier_id)}" if supplier_id else note))
+            conn.commit()
+            return pay_id
+
+    def get_supplier_name(self, supplier_id: int) -> Optional[str]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("SELECT name FROM suppliers WHERE id = ?", (supplier_id,))
+            row = c.fetchone()
+            return row[0] if row else None
+
+    def supplier_summary(self, supplier_id: int) -> Dict[str, Any]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            # totals for invoices
+            c.execute("""
+            SELECT COALESCE(SUM(total_amount), 0), COALESCE(SUM(paid_amount), 0)
+            FROM supplier_invoices WHERE supplier_id = ?
+            """, (supplier_id,))
+            inv_tot, inv_paid = c.fetchone()
+            # totals for payments (installments)
+            c.execute("""
+            SELECT COALESCE(SUM(amount), 0)
+            FROM supplier_payments WHERE supplier_id = ?
+            """, (supplier_id,))
+            pay_tot = c.fetchone()[0] or 0
+            total_invoices = float(inv_tot or 0)
+            total_invoice_paid = float(inv_paid or 0)
+            total_payments = float(pay_tot or 0)
+            remaining = total_invoices - total_invoice_paid - total_payments
+            return {
+                "total_invoices": total_invoices,
+                "total_invoice_paid": total_invoice_paid,
+                "total_payments": total_payments,
+                "remaining": remaining if remaining > 0 else 0.0,
+            }
 
     def delete_expense_by_id(self, expense_id: int):
         with self.connect() as conn:
