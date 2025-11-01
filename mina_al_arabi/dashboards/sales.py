@@ -300,18 +300,25 @@ class SalesDashboard(QWidget):
                 QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
 
         elif mode == "للمحل":
-            # Internal purchase: record invoice to expenses by item name; no printing
+            # Internal shop usage: record expense under "مشتريات للمحل" and deduct from inventory
             saved_any = False
             try:
                 for pid, name, price, qty in items:
-                    self.db.add_expense(category=name, amount=price * qty, note=None, shift_id=shift_id)
+                    # Expense categorized for shop purchases with item name in note
+                    self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name, shift_id=shift_id)
+                    # Deduct from inventory
+                    if pid:
+                        try:
+                            self.db.update_product_qty(pid, -qty)
+                        except Exception:
+                            pass
                 saved_any = True
             except Exception:
                 pass
             if saved_any:
-                QMessageBox.information(self, "تم", "تم تسجيل الفاتورة كمصروفات للمحل بأسماء العناصر بدون طباعة.")
+                QMessageBox.information(self, "تم", "تم تسجيل استخدام المخزون للمحل وخصم الكميات من المخزن.")
             else:
-                QMessageBox.warning(self, "تنبيه", "تعذر تسجيل الفاتورة للمحل.")
+                QMessageBox.warning(self, "تنبيه", "تعذر تسجيل الاستخدام للمحل.")
 
         elif mode == "للموظف":
             # Record under employee for tracking, but not counted towards balance/commission
