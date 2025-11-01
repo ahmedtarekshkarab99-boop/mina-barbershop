@@ -3,11 +3,13 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QInputDialog, QMessageBox, QAbstractItemView
 )
 from PySide6.QtGui import QFont
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from mina_al_arabi.db import Database
 
 
 class InventoryDashboard(QWidget):
+    products_changed = Signal()
+
     def __init__(self, db: Database):
         super().__init__()
         self.db = db
@@ -100,6 +102,10 @@ class InventoryDashboard(QWidget):
         self.qty_input.setValue(0)
         self.price_input.setValue(0)
         self.load_products()
+        try:
+            self.products_changed.emit()
+        except Exception:
+            pass
 
     def delete_selected_product(self):
         row = self.table.currentRow()
@@ -112,6 +118,10 @@ class InventoryDashboard(QWidget):
             pid = int(pid_item.text())
             self.db.delete_product(pid)
             self.load_products()
+            try:
+                self.products_changed.emit()
+            except Exception:
+                pass
         except ValueError:
             pass
 
@@ -149,6 +159,10 @@ class InventoryDashboard(QWidget):
             if delta != 0:
                 self.db.update_product_qty(pid, delta)
             self.load_products()
+            try:
+                self.products_changed.emit()
+            except Exception:
+                pass
             QMessageBox.information(self, "تم", "تم تعديل الكمية بنجاح.")
         except Exception as e:
             QMessageBox.critical(self, "خطأ", f"تعذر تعديل الكمية:\n{e}")
@@ -202,6 +216,10 @@ class InventoryDashboard(QWidget):
         try:
             self.db.update_product_price(pid, new_price)
             self.load_products()
+            try:
+                self.products_changed.emit()
+            except Exception:
+                pass
             QMessageBox.information(self, "تم", "تم تعديل السعر بنجاح.")
         except Exception as e:
             QMessageBox.critical(self, "خطأ", f"تعذر تعديل السعر:\n{e}")

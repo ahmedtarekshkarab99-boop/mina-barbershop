@@ -96,6 +96,13 @@ def main():
         return InventoryDashboard(db)
     inventory_tab = add_tab_or_placeholder(_inventory_factory, "المخزن")
 
+    # Link inventory changes to sales refresh
+    try:
+        if inventory_tab and sales_tab:
+            inventory_tab.products_changed.connect(sales_tab.load_products)
+    except Exception:
+        pass
+
     # Expenses
     def _expenses_factory():
         from mina_al_arabi.dashboards.expenses import ExpensesDashboard
@@ -231,6 +238,8 @@ def main():
         try:
             if inventory_tab:
                 inventory_tab.load_products()
+            if sales_tab:
+                sales_tab.load_products()
             if expenses_tab:
                 expenses_tab.load_expenses()
             QMessageBox.information(window, "تم", "تم تحديث البرنامج.")
