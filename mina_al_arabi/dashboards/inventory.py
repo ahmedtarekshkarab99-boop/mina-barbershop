@@ -157,7 +157,12 @@ class InventoryDashboard(QWidget):
     def load_products(self):
         products = self.db.list_products()
         self.table.setRowCount(0)
-        for pid, name, price, qty in products:
+        for row in products:
+            # row may be (id, name, price, qty, purchase_price)
+            pid = row[0]
+            name = row[1]
+            price = row[2]
+            qty = row[3]
             r = self.table.rowCount()
             self.table.insertRow(r)
             self.table.setItem(r, 0, QTableWidgetItem(str(pid)))
