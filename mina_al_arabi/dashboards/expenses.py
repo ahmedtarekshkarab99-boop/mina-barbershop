@@ -8,7 +8,7 @@ from datetime import datetime
 from mina_al_arabi.db import Database
 
 
-CATEGORIES = ["إيجار", "كهرباء", "مياه", "إنترنت", "مشتريات للمحل", "مصاريف مينا"]
+CATEGORIES = ["إيجار", "كهرباء", "مياه", "إنترنت", "مشتريات للمحل", "مصاريف مينا", "يوميات العمالة"]
 
 
 def format_amount(amount: float) -> str:
@@ -91,9 +91,17 @@ class ExpensesDashboard(QWidget):
         self.summary_label.setFont(self.body_font)
         layout.addWidget(self.summary_label, alignment=Qt.AlignRight)
 
+        self.shop_total_label = QLabel("🧾 إجمالي مشتريات المحل: 0 ج.م")
+        self.shop_total_label.setFont(self.body_font)
+        layout.addWidget(self.shop_total_label, alignment=Qt.AlignRight)
+
         self.others_summary_label = QLabel("إجمالي بند مصاريف مينا: 0 ج.م")
         self.others_summary_label.setFont(self.body_font)
         layout.addWidget(self.others_summary_label, alignment=Qt.AlignRight)
+
+        self.daily_labor_total_label = QLabel("إجمالي يوميات العمالة: 0 ج.م")
+        self.daily_labor_total_label.setFont(self.body_font)
+        layout.addWidget(self.daily_labor_total_label, alignment=Qt.AlignRight)
 
         self.load_expenses()
 
@@ -131,6 +139,9 @@ class ExpensesDashboard(QWidget):
         self.table.setRowCount(0)
         total = 0.0
         mina_total = 0.0
+        shop_total = 0.0
+        daily_labor_total = 0.0
+
         for rid, date, cat, amount, note in rows:
             r = self.table.rowCount()
             self.table.insertRow(r)
@@ -142,15 +153,35 @@ class ExpensesDashboard(QWidget):
             except Exception:
                 date_display = date
             self.table.setItem(r, 1, QTableWidgetItem(date_display))
-            # Map legacy "أخرى" to "مصاريف مينا" and show note when present
-            is_mina = cat in {"أخرى", "مصاريف مينا"}
+
+            # Display note instead of category whenever provided
+            # Map legacy "أخرى" to "مصاريف مينا"
             display_cat = "مصاريف مينا" if cat == "أخرى" else cat
-            cat_display = note if (is_mina and note) else display_cat
+            cat_display = note if note else display_cat
             self.table.setItem(r, 2, QTableWidgetItem(cat_display))
+
             self.table.setItem(r, 3, QTableWidgetItem(format_amount(amount)))
+
+            # Totals
             total += amount
-            if is_mina:
+
+            # Mina expenses total (legacy 'أخرى' + 'مصاريف مينا')
+            if cat in {"أخرى", "مصاريف مينا"}:
                 mina_total += amount
+
+            # Shop purchases total:
+            # - Primary: category explicitly 'مشتريات للمحل'
+            # - Fallback heuristic: entries created by Shop invoices where category is not a predefined category and note is empty
+            predefined = set(CATEGORIES)
+            if cat == "مشتريات للمحل" or (note is None and cat not in predefined):
+                shop_total += amount
+
+            # Daily Labor total
+            if cat == "يوميات العمالة":
+                daily_labor_total += amount
+
         self.table.resizeColumnsToContents()
         self.summary_label.setText(f"إجمالي المصاريف: {format_amount(total)} ج.م")
+        self.shop_total_label.setText(f"🧾 إجمالي مشتريات المحل: {format_amount(shop_total)} ج.م")
         self.others_summary_label.setText(f"إجمالي بند مصاريف مينا: {format_amount(mina_total)} ج.م")
+        self.daily_labor_total_label.setText(f"إجمالي يوميات العمالة: {format_amount(daily_labor_total)} ج.م")
