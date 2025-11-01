@@ -133,6 +133,8 @@ class Database:
                 date TEXT NOT NULL,
                 check_in TEXT,
                 check_out TEXT,
+                manual INTEGER NOT NULL DEFAULT 0,
+                note TEXT,
                 FOREIGN KEY(employee_id) REFERENCES employees(id)
             )
             """)
@@ -170,6 +172,8 @@ class Database:
                 "ALTER TABLE sales ADD COLUMN material_deduction REAL NOT NULL DEFAULT 0",
                 "ALTER TABLE sales ADD COLUMN shift_id INTEGER",
                 "ALTER TABLE expenses ADD COLUMN shift_id INTEGER",
+                "ALTER TABLE attendance ADD COLUMN manual INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE attendance ADD COLUMN note TEXT",
             ]:
                 try:
                     c.execute(stmt)
@@ -550,32 +554,67 @@ class Database:
 
     # Attendance
     def check_in(self, employee_id: int):
-        now = datetime.now().strftime("%Y-%m-%d")
-        time = datetime.now().strftime("%H:%M:%S")
+        now_date = datetime.now().strftime("%Y-%m-%d")
+        now_time = datetime.now().strftime("%H:%M:%S")
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            INSERT INTO attendance(employee_id, date, check_in)
-            VALUES (?, ?, ?)
-            """, (employee_id, now, time))
+            INSERT INTO attendance(employee_id, date, check_in, manual, note)
+            VALUES (?, ?, ?, 0, NULL)
+            """, (employee_id, now_date, now_time))
             conn.commit()
 
     def check_out(self, employee_id: int):
-        now = datetime.now().strftime("%Y-%m-%d")
-        time = datetime.now().strftime("%H:%M:%S")
+        # Count as same day as check-in even if after midnight:
+        # We update the latest open record for this employee (no check_out yet)
+        now_time = datetime.now().strftime("%H:%M:%S")
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
             UPDATE attendance
             SET check_out = ?
-            WHERE employee_id = ? AND date = ?
-            """, (time, employee_id, now))
+            WHERE employee_id = ? AND check_out IS NULL
+            ORDER BY date DESC, id DESC
+            """, (now_time, employee_id))
             conn.commit()
 
     def delete_all_attendance(self):
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("DELETE FROM attendance")
+            conn.commit()
+
+    # Manual attendance and editing
+    def add_manual_attendance(self, employee_id: int, date: str, check_in: str, check_out: Optional[str] = None, note: Optional[str] = None):
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            INSERT INTO attendance(employee_id, date, check_in, check_out, manual, note)
+            VALUES (?, ?, ?, ?, 1, ?)
+            """, (employee_id, date, check_in, check_out, note))
+            conn.commit()
+
+    def edit_attendance(self, record_id: int, check_in: Optional[str] = None, check_out: Optional[str] = None, note: Optional[str] = None, manual: Optional[int] = None):
+        with self.connect() as conn:
+            c = conn.cursor()
+            fields = []
+            params = []
+            if check_in is not None:
+                fields.append("check_in = ?")
+                params.append(check_in)
+            if check_out is not None:
+                fields.append("check_out = ?")
+                params.append(check_out)
+            if note is not None:
+                fields.append("note = ?")
+                params.append(note)
+            if manual is not None:
+                fields.append("manual = ?")
+                params.append(int(bool(manual)))
+            if not fields:
+                return
+            params.append(record_id)
+            c.execute(f"UPDATE attendance SET {', '.join(fields)} WHERE id = ?", params)
             conn.commit()
 
     def add_loan(self, employee_id: int, amount: float, note: Optional[str] = None):
@@ -613,14 +652,23 @@ class Database:
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
-            SELECT a.date, e.name, a.check_in, a.check_out, a.employee_id
+            SELECT a.id, a.date, e.name, a.check_in, a.check_out, a.employee_id, a.manual, a.note
             FROM attendance a
             JOIN employees e ON e.id = a.employee_id
             WHERE substr(a.date,1,4) = ? AND substr(a.date,6,2) = ?
-            ORDER BY a.date DESC
+            ORDER BY a.date DESC, a.id DESC
             """, (str(year), f"{month:02d}"))
             rows = c.fetchall()
-            return [{"date": r[0], "employee": r[1], "check_in": r[2], "check_out": r[3], "employee_id": r[4]} for r in rows]
+            return [{
+                "id": r[0],
+                "date": r[1],
+                "employee": r[2],
+                "check_in": r[3],
+                "check_out": r[4],
+                "employee_id": r[5],
+                "manual": int(r[6] or 0),
+                "note": r[7] or None
+            } for r in rows]
 
     # Account clearing helpers
     def delete_sales_and_items_by_employee(self, employee_id: int):
