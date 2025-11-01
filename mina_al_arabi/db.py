@@ -274,10 +274,30 @@ class Database:
             conn.commit()
 
     # Sales and items
+    def _normalize_date_for_shift(self, date: str, shift_id: Optional[int]) -> str:
+        """If a shift_id is provided, force the date's day to the shift's opened_at day, preserving time."""
+        if not shift_id:
+            return date
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("SELECT opened_at FROM shifts WHERE id = ?", (shift_id,))
+            row = c.fetchone()
+            if not row or not row[0]:
+                return date
+            opened_at = row[0]  # "YYYY-MM-DD HH:MM:SS"
+            shift_day = opened_at[:10]
+        # Preserve time component from provided date (if any)
+        try:
+            time_part = date.split(" ")[1]
+        except Exception:
+            time_part = "00:00:00"
+        return f"{shift_day} {time_part}"
+
     def create_sale(self, date: str, employee_id: Optional[int], customer_name: Optional[str],
                     is_shop: int, total: float, discount_percent: int, sale_type: str,
                     buyer_type: str = "customer", material_deduction: float = 0.0,
                     shift_id: Optional[int] = None, cashier_name: Optional[str] = None) -> int:
+        date = self._normalize_date_for_shift(date, shift_id)
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
@@ -354,6 +374,7 @@ class Database:
     def add_expense(self, category: str, amount: float, note: Optional[str] = None, date: Optional[str] = None, shift_id: Optional[int] = None):
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        date = self._normalize_date_for_shift(date, shift_id)
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
@@ -554,14 +575,32 @@ class Database:
 
     # Attendance
     def check_in(self, employee_id: int):
-        now_date = datetime.now().strftime("%Y-%m-%d")
         now_time = datetime.now().strftime("%H:%M:%S")
+        # Attach to active shift start day if present
+        sh = self.get_active_shift()
+        if sh:
+            shift_id = sh[0]
+            opened_at = sh[3]  # "YYYY-MM-DD HH:MM:SS"
+            shift_day = opened_at[:10]
+            date_val = f"{shift_day}"
+        else:
+            shift_id = None
+            date_val = datetime.now().strftime("%Y-%m-%d")
         with self.connect() as conn:
             c = conn.cursor()
             c.execute("""
             INSERT INTO attendance(employee_id, date, check_in, manual, note)
             VALUES (?, ?, ?, 0, NULL)
-            """, (employee_id, now_date, now_time))
+            """, (employee_id, date_val, now_time))
+            # Optionally store shift_id if column exists
+            try:
+                c.execute("ALTER TABLE attendance ADD COLUMN shift_id INTEGER")
+            except Exception:
+                pass
+            try:
+                c.execute("UPDATE attendance SET shift_id = ? WHERE id = (SELECT MAX(id) FROM attendance)")
+            except Exception:
+                pass
             conn.commit()
 
     def check_out(self, employee_id: int):

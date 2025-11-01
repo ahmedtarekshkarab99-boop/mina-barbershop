@@ -62,6 +62,11 @@ class ExpensesDashboard(QWidget):
         add_btn.clicked.connect(self.add_expense)
         form.addWidget(add_btn)
 
+        # Attach to active shift info
+        self.shift_hint = QLabel("")
+        self.shift_hint.setFont(self.body_font)
+        layout.addWidget(self.shift_hint)
+
         layout.addLayout(form)
 
         self.table = QTableWidget(0, 4)
@@ -115,7 +120,17 @@ class ExpensesDashboard(QWidget):
         note = self.note_input.text().strip() or None
         if amount <= 0:
             return
-        self.db.add_expense(cat, amount, note)
+        # Link to active shift and normalize date to shift start day
+        try:
+            sh = self.db.get_active_shift()
+            shift_id = sh[0] if sh else None
+            if sh:
+                self.shift_hint.setText(f"مصروف مرتبط بالشفت رقم {sh[1]} - تاريخ الشفت: {sh[3][:10]}")
+            else:
+                self.shift_hint.setText("لا يوجد شفت نشط")
+        except Exception:
+            shift_id = None
+        self.db.add_expense(cat, amount, note, shift_id=shift_id)
         self.amount_input.setValue(0)
         self.note_input.clear()
         self.load_expenses()
