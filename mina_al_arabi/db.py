@@ -849,3 +849,23 @@ class Database:
                 c.executemany("DELETE FROM sale_items WHERE sale_id = ?", [(sid,) for sid in sale_ids])
                 c.executemany("DELETE FROM sales WHERE id = ?", [(sid,) for sid in sale_ids])
             conn.commit()
+
+    # Dashboard summaries
+    def inventory_total_value(self) -> float:
+        """Sum of quantity * purchase_price; falls back to sale price when purchase_price is NULL."""
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT COALESCE(SUM(quantity * COALESCE(purchase_price, price)), 0)
+            FROM products
+            """)
+            val = c.fetchone()[0]
+            return float(val or 0)
+
+    def total_supplier_pending_balance(self) -> float:
+        """Total remaining balances across all suppliers (sum of per-supplier remaining)."""
+        total_remaining = 0.0
+        for sid, _name, _phone, _notes in self.list_suppliers():
+            s = self.supplier_summary(sid)
+            total_remaining += float(s.get("remaining", 0.0) or 0.0)
+        return total_remaining
