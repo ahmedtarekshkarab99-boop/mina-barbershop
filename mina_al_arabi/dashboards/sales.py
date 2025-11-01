@@ -7,18 +7,19 @@ from PySide6.QtGui import QFont
 from datetime import datetime
 import os
 
-from mina_al_arabi.db import Database
+from mina_al_arabi.db import Database, RECEIPTS_DIR
 from mina_al_arabi.printing import print_receipt
-
 
 def format_amount(amount: float) -> str:
     return f"{int(round(amount))}"
 
-
 def receipts_dir() -> str:
-    base = os.path.join(os.path.dirname(__file__), "..", "data", "receipts")
-    base = os.path.abspath(base)
-    os.makedirs(base, exist_ok=True)
+    # Use central data directory from db.py to be consistent in frozen builds
+    base = RECEIPTS_DIR
+    try:
+        os.makedirs(base, exist_ok=True)
+    except Exception:
+        pass
     return base
 
 
@@ -290,14 +291,22 @@ class SalesDashboard(QWidget):
             lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
             receipt_text = "\n".join(lines)
 
-            with open(txt_path, "w", encoding="utf-8") as ftxt:
-                ftxt.write(receipt_text)
-
+            # Write receipt file and verify
+            write_ok = False
             try:
-                print_receipt(receipt_text)
-                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{txt_path}")
+                with open(txt_path, "w", encoding="utf-8") as ftxt:
+                    ftxt.write(receipt_text)
+                    ftxt.flush()
+                write_ok = os.path.isfile(txt_path)
             except Exception as e:
-                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
+                QMessageBox.critical(self, "خطأ", f"تعذر حفظ الإيصال:\n{e}\n{txt_path}")
+
+            if write_ok:
+                try:
+                    print_receipt(receipt_text)
+                    QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{txt_path}")
+                except Exception as e:
+                    QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
 
         elif mode == "للمحل":
             # Internal shop usage:
