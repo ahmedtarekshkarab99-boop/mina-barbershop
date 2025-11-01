@@ -133,14 +133,18 @@ class AdminReportDashboard(QWidget):
         year = int(self.year_input.value())
         month = int(self.month_input.value())
 
-        # Revenue totals
-        total_services = self.db.sum_services_in_month(year, month)
-        total_sales = self.db.sum_products_in_month(year, month)
-        total_revenue = total_services + total_sales
+        # Revenue totals (show both gross and net; use net for actual revenue)
+        gross_services = self.db.sum_services_in_month(year, month)
+        gross_sales = self.db.sum_products_in_month(year, month)
+        net_services = self.db.sum_services_net_in_month(year, month)
+        net_sales = self.db.sum_products_net_in_month(year, month)
+        total_revenue = net_services + net_sales
         self.rev_totals_label.setText(
-            f"إجمالي الخدمات: {format_amount(total_services)} ج.م | "
-            f"إجمالي المبيعات: {format_amount(total_sales)} ج.م | "
-            f"إجمالي الإيرادات: {format_amount(total_revenue)} ج.م"
+            f"إجمالي الخدمات (قبل الخصم): {format_amount(gross_services)} ج.م | "
+            f"إجمالي الخدمات (بعد الخصم): {format_amount(net_services)} ج.م | "
+            f"إجمالي المبيعات (قبل الخصم): {format_amount(gross_sales)} ج.م | "
+            f"إجمالي المبيعات (بعد الخصم): {format_amount(net_sales)} ج.م | "
+            f"إجمالي الإيرادات (الصافي): {format_amount(total_revenue)} ج.م"
         )
 
         # Per-employee services totals (effective after discounts/material deductions)
