@@ -732,6 +732,22 @@ class Database:
             c.execute("DELETE FROM loans WHERE employee_id = ?", (employee_id,))
             conn.commit()
 
+    # Invoice management
+    def update_sale_employee(self, sale_id: int, new_employee_id: Optional[int]):
+        """Reassign a sale to a different employee (or None)."""
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("UPDATE sales SET employee_id = ? WHERE id = ?", (new_employee_id, sale_id))
+            conn.commit()
+
+    def delete_sale_by_id(self, sale_id: int):
+        """Delete a sale and its items."""
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
+            c.execute("DELETE FROM sales WHERE id = ?", (sale_id,))
+            conn.commit()
+
     # Admin report helpers
     def sum_services_in_month(self, year: int, month: int) -> float:
         """Gross services total (before discount)."""
