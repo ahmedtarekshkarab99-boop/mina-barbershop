@@ -7,18 +7,19 @@ from PySide6.QtGui import QFont
 from datetime import datetime
 import os
 
-from mina_al_arabi.db import Database
+from mina_al_arabi.db import Database, RECEIPTS_DIR
 from mina_al_arabi.printing import print_receipt
-
 
 def format_amount(amount: float) -> str:
     return f"{int(round(amount))}"
 
-
 def receipts_dir() -> str:
-    base = os.path.join(os.path.dirname(__file__), "..", "data", "receipts")
-    base = os.path.abspath(base)
-    os.makedirs(base, exist_ok=True)
+    # Use central data directory from db.py to be consistent in frozen builds
+    base = RECEIPTS_DIR
+    try:
+        os.makedirs(base, exist_ok=True)
+    except Exception:
+        pass
     return base
 
 
@@ -290,21 +291,46 @@ class SalesDashboard(QWidget):
             lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
             receipt_text = "\n".join(lines)
 
-            with open(txt_path, "w", encoding="utf-8") as ftxt:
-                ftxt.write(receipt_text)
-
+            # Write receipt file and verify
+            write_ok = False
             try:
-                print_receipt(receipt_text)
-                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{txt_path}")
+                with open(txt_path, "w", encoding="utf-8") as ftxt:
+                    ftxt.write(receipt_text)
+                    ftxt.flush()
+                write_ok = os.path.isfile(txt_path)
             except Exception as e:
-                QMessageBox.information(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
+                QMessageBox.critical(self, "خطأ", f"تعذر حفظ الإيصال:\n{e}\n{txt_path}")
+
+            if write_ok:
+                try:
+                    print_receipt(receipt_text)
+                    QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{txt_path}")
+                except Exception as e:
+                    QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{txt_path}")
 
         elif mode == "للمحل":
-            # Internal shop usage: record expense under "مشتريات للمحل" and deduct from inventory
+            # Internal shop usage:
+            # 1) Create a sale with buyer_type='shop' so it reflects in admin totals
+            # 2) Record expense under "مشتريات للمحل" with item name in note
+            # 3) Deduct quantities from inventory
             saved_any = False
             try:
+                sale_id = self.db.create_sale(
+                    date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    employee_id=None,
+                    customer_name="المحل",
+                    is_shop=1,
+                    total=total,
+                    discount_percent=discount_percent,
+                    sale_type="product",
+                    buyer_type="shop",
+                    material_deduction=0.0,
+                    shift_id=shift_id,
+                )
                 for pid, name, price, qty in items:
-                    # Expense categorized for shop purchases with item name in note
+                    # Add sale items
+                    self.db.add_sale_item(sale_id, name, price, qty)
+                    # Record expense entry for shop purchases
                     self.db.add_expense(category="مشتريات للمحل", amount=price * qty, note=name, shift_id=shift_id)
                     # Deduct from inventory
                     if pid:
@@ -316,7 +342,7 @@ class SalesDashboard(QWidget):
             except Exception:
                 pass
             if saved_any:
-                QMessageBox.information(self, "تم", "تم تسجيل استخدام المخزون للمحل وخصم الكميات من المخزن.")
+                QMessageBox.information(self, "تم", "تم تسجيل فاتورة للمحل وخصم الكميات من المخزن وإضافتها للمصاريف.")
             else:
                 QMessageBox.warning(self, "تنبيه", "تعذر تسجيل الاستخدام للمحل.")
 

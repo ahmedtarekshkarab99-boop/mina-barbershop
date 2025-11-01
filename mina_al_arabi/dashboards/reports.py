@@ -1,15 +1,13 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox, QTableWidget, QTableWidgetItem, QPushButton, QRadioButton, QMessageBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox, QTableWidget, QTableWidgetItem, QPushButton, QRadioButton, QMessageBox, QInputDialog
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 from datetime import datetime
 from mina_al_arabi.db import Database
 
-
 def format_amount(amount: float) -> str:
     return str(int(round(amount)))
-
 
 def format_time_ar_str(dt_str: str) -> str:
     try:
@@ -72,6 +70,17 @@ class ReportsDashboard(QWidget):
         clear_btn.clicked.connect(self._clear_employee_account)
         controls.addWidget(clear_btn)
 
+        # Management actions on selected invoice
+        self.change_emp_btn = QPushButton("تغيير الموظف للفاتورة المحددة")
+        self.change_emp_btn.setFont(self.body_font)
+        self.change_emp_btn.clicked.connect(self._change_invoice_employee)
+        controls.addWidget(self.change_emp_btn)
+
+        self.delete_inv_btn = QPushButton("حذف الفاتورة المحددة")
+        self.delete_inv_btn.setFont(self.body_font)
+        self.delete_inv_btn.clicked.connect(self._delete_selected_invoice)
+        controls.addWidget(self.delete_inv_btn)
+
         layout.addLayout(controls)
 
         self.table = QTableWidget(0, 3)
@@ -84,7 +93,7 @@ class ReportsDashboard(QWidget):
         layout.addWidget(self.summary_label)
 
         self._load_employees()
-        self
+
     def _load_employees(self):
         self.employee_combo.clear()
         for eid, name in self.db.list_employees():
@@ -127,15 +136,16 @@ class ReportsDashboard(QWidget):
                 effective_total = 0.0
 
             if s.get("buyer_type") == "employee":
-                # Show for tracking only; do not include in totals/balance/commission
                 desc = "فاتورة مبيعات (للموظف)"
-                # No accumulation to totals or deductions
             elif s["type"] == "service":
                 total_services += effective_total
             else:
                 total_products += effective_total
 
-            self.table.setItem(i, 0, QTableWidgetItem(desc))
+            # Set row data with sale id in first cell user data
+            desc_item = QTableWidgetItem(desc)
+            desc_item.setData(Qt.UserRole, s["id"])
+            self.table.setItem(i, 0, desc_item)
             self.table.setItem(i, 1, QTableWidgetItem(format_time_ar_str(s["date"])))
             self.table.setItem(i, 2, QTableWidgetItem(format_amount(effective_total)))
 
@@ -164,7 +174,6 @@ class ReportsDashboard(QWidget):
         emp_id = self.employee_combo.currentData()
         confirm = QMessageBox.question(self, "تأكيد", f"هل تريد تصفية حساب الموظف: {emp_name}؟ سيتم حذف الفواتير والسلف الخاصة به.")
         if confirm == QMessageBox.Yes:
-            # Delete sales and loans for this employee
             try:
                 self.db.delete_sales_and_items_by_employee(emp_id)
                 self.db.delete_loans_by_employee(emp_id)
@@ -172,3 +181,54 @@ class ReportsDashboard(QWidget):
                 self.refresh()
             except Exception as e:
                 QMessageBox.critical(self, "خطأ", f"حدث خطأ أثناء التصفية:\n{e}")
+
+    def _get_selected_sale_id(self) -> int:
+        row = self.table.currentRow()
+        if row < 0:
+            return 0
+        cell = self.table.item(row, 0)
+        if not cell:
+            return 0
+        sale_id = int(cell.data(Qt.UserRole) or 0)
+        return sale_id
+
+    def _change_invoice_employee(self):
+        sale_id = self._get_selected_sale_id()
+        if not sale_id:
+            QMessageBox.warning(self, "تنبيه", "اختر فاتورة من الجدول أولاً.")
+            return
+        # Choose new employee
+        employees = list(self.db.list_employees())
+        if not employees:
+            QMessageBox.warning(self, "تنبيه", "لا يوجد موظفون.")
+            return
+        names = [name for _, name in employees]
+        name, ok = QInputDialog.getItem(self, "تغيير الموظف", "اختر الموظف:", names, 0, False)
+        if not ok:
+            return
+        # Map name to id
+        new_emp_id = None
+        for eid, nm in employees:
+            if nm == name:
+                new_emp_id = eid
+                break
+        try:
+            self.db.update_sale_employee(sale_id, new_emp_id)
+            QMessageBox.information(self, "تم", "تم تغيير الموظف للفاتورة.")
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ", f"تعذر تغيير الموظف:\n{e}")
+
+    def _delete_selected_invoice(self):
+        sale_id = self._get_selected_sale_id()
+        if not sale_id:
+            QMessageBox.warning(self, "تنبيه", "اختر فاتورة من الجدول أولاً.")
+            return
+        confirm = QMessageBox.question(self, "تأكيد", "هل أنت متأكد من حذف هذه الفاتورة؟ هذا الإجراء لا يمكن التراجع عنه.")
+        if confirm == QMessageBox.Yes:
+            try:
+                self.db.delete_sale_by_id(sale_id)
+                QMessageBox.information(self, "تم", "تم حذف الفاتورة.")
+                self.refresh()
+            except Exception as e:
+                QMessageBox.critical(self, "خطأ", f"تعذر حذف الفاتورة:\n{e}")

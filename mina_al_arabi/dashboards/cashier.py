@@ -7,18 +7,19 @@ from PySide6.QtGui import QFont
 from datetime import datetime
 import os
 
-from mina_al_arabi.db import Database
+from mina_al_arabi.db import Database, RECEIPTS_DIR
 from mina_al_arabi.printing import print_receipt
-
 
 def format_amount(amount: float) -> str:
     return f"{int(round(amount))}"
 
-
 def receipts_dir() -> str:
-    base = os.path.join(os.path.dirname(__file__), "..", "data", "receipts")
-    base = os.path.abspath(base)
-    os.makedirs(base, exist_ok=True)
+    # Use central data directory from db.py to be consistent in frozen builds
+    base = RECEIPTS_DIR
+    try:
+        os.makedirs(base, exist_ok=True)
+    except Exception:
+        pass
     return base
 
 
@@ -250,14 +251,22 @@ class CashierDashboard(QWidget):
         text = "\n".join(lines)
 
         path = os.path.join(receipts_dir(), f"receipt_service_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(text)
-
+        # Write receipt and verify existence
+        write_ok = False
         try:
-            print_receipt(text)
-            QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{path}")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+                f.flush()
+            write_ok = os.path.isfile(path)
         except Exception as e:
-            QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{path}")
+            QMessageBox.critical(self, "خطأ", f"تعذر حفظ الإيصال:\n{e}\n{path}")
+
+        if write_ok:
+            try:
+                print_receipt(text)
+                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{path}")
+            except Exception as e:
+                QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{path}")
 
         self.invoice_list.clear()
         self.customer_input.clear()
