@@ -49,7 +49,8 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL,
-                quantity INTEGER NOT NULL DEFAULT 0
+                quantity INTEGER NOT NULL DEFAULT 0,
+                purchase_price REAL
             )
             """)
 
@@ -174,6 +175,7 @@ class Database:
                 "ALTER TABLE expenses ADD COLUMN shift_id INTEGER",
                 "ALTER TABLE attendance ADD COLUMN manual INTEGER NOT NULL DEFAULT 0",
                 "ALTER TABLE attendance ADD COLUMN note TEXT",
+                "ALTER TABLE products ADD COLUMN purchase_price REAL",
             ]:
                 try:
                     c.execute(stmt)
@@ -234,12 +236,12 @@ class Database:
             conn.commit()
 
     # Products
-    def add_product(self, name: str, price: float, quantity: int):
+    def add_product(self, name: str, price: float, quantity: int, purchase_price: Optional[float] = None):
         with self.connect() as conn:
             c = conn.cursor()
             c.execute(
-                "INSERT OR IGNORE INTO products(name, price, quantity) VALUES (?, ?, ?)",
-                (name, price, quantity)
+                "INSERT OR IGNORE INTO products(name, price, quantity, purchase_price) VALUES (?, ?, ?, ?)",
+                (name, price, quantity, purchase_price)
             )
             conn.commit()
 
@@ -255,16 +257,16 @@ class Database:
             c.execute("UPDATE products SET price = ? WHERE id = ?", (new_price, product_id))
             conn.commit()
 
-    def list_products(self) -> List[Tuple[int, str, float, int]]:
+    def list_products(self) -> List[Tuple[int, str, float, int, Optional[float]]]:
         with self.connect() as conn:
             c = conn.cursor()
-            c.execute("SELECT id, name, price, quantity FROM products ORDER BY name")
+            c.execute("SELECT id, name, price, quantity, purchase_price FROM products ORDER BY name")
             return c.fetchall()
 
-    def get_product_by_name(self, name: str) -> Optional[Tuple[int, str, float, int]]:
+    def get_product_by_name(self, name: str) -> Optional[Tuple[int, str, float, int, Optional[float]]]:
         with self.connect() as conn:
             c = conn.cursor()
-            c.execute("SELECT id, name, price, quantity FROM products WHERE name = ?", (name,))
+            c.execute("SELECT id, name, price, quantity, purchase_price FROM products WHERE name = ?", (name,))
             return c.fetchone()
 
     def delete_product(self, product_id: int):
