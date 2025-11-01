@@ -655,6 +655,17 @@ class Database:
             val = c.fetchone()[0]
             return float(val or 0)
 
+    def sum_products_in_month(self, year: int, month: int) -> float:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT COALESCE(SUM(total), 0)
+            FROM sales
+            WHERE type = 'product' AND buyer_type = 'customer' AND substr(date,1,4) = ? AND substr(date,6,2) = ?
+            """, (str(year), f"{month:02d}"))
+            val = c.fetchone()[0]
+            return float(val or 0)
+
     def sum_expenses_category_in_month(self, category: str, year: int, month: int) -> float:
         with self.connect() as conn:
             c = conn.cursor()
