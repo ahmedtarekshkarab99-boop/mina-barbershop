@@ -38,11 +38,22 @@ class ClientsDashboard(QWidget):
 
         # Search controls
         search_row = QHBoxLayout()
-        search_row.addWidget(QLabel("بحث (اسم العميل / رقم الهاتف):"))
+        name_lbl = QLabel("اسم العميل:")
+        name_lbl.setFont(self.body_font)
+        search_row.addWidget(name_lbl)
         self.search_input = QLineEdit()
         self.search_input.setFont(self.body_font)
-        self.search_input.setPlaceholderText("اكتب جزءاً من الاسم أو الرقم...")
+        self.search_input.setPlaceholderText("اكتب جزءاً من الاسم...")
         search_row.addWidget(self.search_input)
+
+        phone_lbl = QLabel("رقم الهاتف:")
+        phone_lbl.setFont(self.body_font)
+        search_row.addWidget(phone_lbl)
+        self.phone_input = QLineEdit()
+        self.phone_input.setFont(self.body_font)
+        self.phone_input.setPlaceholderText("اكتب جزءاً من الرقم...")
+        search_row.addWidget(self.phone_input)
+
         search_btn = QPushButton("بحث")
         search_btn.setFont(self.body_font)
         search_btn.clicked.connect(self.search_clients)
@@ -63,8 +74,21 @@ class ClientsDashboard(QWidget):
         layout.addWidget(self.summary_label, alignment=Qt.AlignRight)
 
     def search_clients(self):
-        query = self.search_input.text().strip()
-        rows = self.db.list_sales_by_customer_like(query)
+        query_name = self.search_input.text().strip()
+        query_phone = self.phone_input.text().strip()
+        rows = []
+        seen = set()
+        # Search by name
+        if query_name:
+            for s in self.db.list_sales_by_customer_like(query_name):
+                if s["id"] not in seen:
+                    rows.append(s); seen.add(s["id"])
+        # Search by phone (customer_name includes phone if stored there)
+        if query_phone:
+            for s in self.db.list_sales_by_customer_like(query_phone):
+                if s["id"] not in seen:
+                    rows.append(s); seen.add(s["id"])
+        # If neither provided, show nothing
         self.table.setRowCount(0)
         total_services = 0.0
         total_products = 0.0
