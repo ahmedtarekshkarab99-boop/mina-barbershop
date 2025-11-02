@@ -741,9 +741,24 @@ class Database:
             conn.commit()
 
     def delete_sale_by_id(self, sale_id: int):
-        """Delete a sale and its items."""
+        """Delete a sale and its items, and restock inventory quantities for product items."""
         with self.connect() as conn:
             c = conn.cursor()
+            # Restock inventory for product sale items (match by product name)
+            try:
+                c.execute("SELECT item_name, quantity FROM sale_items WHERE sale_id = ?", (sale_id,))
+                for item_name, qty in c.fetchall():
+                    try:
+                        prod = self.get_product_by_name(item_name)
+                        if prod:
+                            pid = prod[0]
+                            # increase quantity back
+                            c.execute("UPDATE products SET quantity = quantity + ? WHERE id = ?", (int(qty or 0), pid))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            # Delete sale items and sale
             c.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
             c.execute("DELETE FROM sales WHERE id = ?", (sale_id,))
             conn.commit()

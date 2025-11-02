@@ -71,7 +71,7 @@ class SalesDashboard(QWidget):
         mode_row = QHBoxLayout()
         mode_row.addWidget(QLabel("نوع الفاتورة:"))
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["عميل", "للمحل", "للموظف"])
+        self.mode_combo.addItems(["عميل", "للمحل"])
         self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         mode_row.addWidget(self.mode_combo)
         right.addLayout(mode_row)
@@ -81,9 +81,6 @@ class SalesDashboard(QWidget):
         self.customer_input = QLineEdit()
         self.customer_input.setFont(self.body_font)
         buyer_layout.addWidget(self.customer_input)
-        buyer_layout.addWidget(QLabel("الموظف"))
-        self.employee_combo = QComboBox()
-        buyer_layout.addWidget(self.employee_combo)
         right.addLayout(buyer_layout)
 
         self.invoice_list = QListWidget()
@@ -129,7 +126,6 @@ class SalesDashboard(QWidget):
         root.addLayout(left, 3)
         root.addLayout(right, 1)
 
-        self._load_employees()
         self.load_products()
         self._on_mode_changed()
 
@@ -140,14 +136,7 @@ class SalesDashboard(QWidget):
         else:
             self.submit_btn.setText("طباعة إيصال")
 
-    def _load_employees(self):
-        self.employee_combo.clear()
-        try:
-            rows = self.db.list_employees()
-            for eid, name in rows:
-                self.employee_combo.addItem(name, eid)
-        except Exception:
-            pass
+    # Employees selection removed (no longer needed in Sales screen)
 
     def _clear_products_grid(self):
         while self.products_grid.count():
@@ -240,7 +229,8 @@ class SalesDashboard(QWidget):
 
         mode = self.mode_combo.currentText()
         customer_name = self.customer_input.text().strip() or "غير محدد"
-        employee_id = self.employee_combo.currentData() if self.employee_combo.currentIndex() >= 0 else None
+        # No employee assignment in sales screen
+        employee_id = None
 
         # Link to active shift if present
         try:
@@ -346,53 +336,7 @@ class SalesDashboard(QWidget):
             else:
                 QMessageBox.warning(self, "تنبيه", "تعذر تسجيل الاستخدام للمحل.")
 
-        elif mode == "للموظف":
-            # Record under employee for tracking, but not counted towards balance/commission
-            if employee_id is None:
-                QMessageBox.warning(self, "تنبيه", "اختر الموظف أولاً.")
-                return
-            try:
-                sale_id = self.db.create_sale(
-                    date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    employee_id=employee_id,
-                    customer_name=None,
-                    is_shop=0,
-                    total=total,
-                    discount_percent=discount_percent,
-                    sale_type="product",
-                    buyer_type="employee",  # used by reports to exclude from balance/commission
-                    material_deduction=material_deduction,
-                    shift_id=shift_id,
-                )
-                for pid, name, price, qty in items:
-                    self.db.add_sale_item(sale_id, name, price, qty)
-                    if pid:
-                        try:
-                            self.db.update_product_qty(pid, -qty)
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            # Optionally save a text receipt (no business impact)
-            ts = datetime.now()
-            basename = f"receipt_employee_{ts.strftime('%Y%m%d_%H%M%S')}"
-            txt_path = os.path.join(receipts_dir(), f"{basename}.txt")
-            lines = [
-                "صالون مينا العربي",
-                f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}",
-                f"الموظف: {self.employee_combo.currentText()}",
-                "-" * 30
-            ]
-            for _, name, price, qty in items:
-                lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-            total_after = total * (1 - discount_percent/100.0)
-            lines += ["-" * 30, f"الإجمالي: {format_amount(total_after)} ج.م"]
-            receipt_text = "\n".join(lines)
-            try:
-                with open(txt_path, "w", encoding="utf-8") as ftxt:
-                    ftxt.write(receipt_text)
-            except Exception:
-                pass
+        
 
         # Reset common fields
         self.invoice_list.clear()
