@@ -143,8 +143,7 @@ class CashierDashboard(QWidget):
             services = self.db.list_services()
         except Exception:
             services = []
-        # Reverse order: newest first
-        services = list(reversed(services))
+        # Services already come ordered by newest first (id DESC)
         row, col = 0, 0
         for sid, name, price in services:
             if query and (query not in name.lower()):

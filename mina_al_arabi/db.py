@@ -218,9 +218,10 @@ class Database:
             conn.commit()
 
     def list_services(self) -> List[Tuple[int, str, float]]:
+        """Return services ordered by newest first (insertion order via id DESC)."""
         with self.connect() as conn:
             c = conn.cursor()
-            c.execute("SELECT id, name, price FROM services ORDER BY name")
+            c.execute("SELECT id, name, price FROM services ORDER BY id DESC")
             return c.fetchall()
 
     def delete_service_by_name(self, name: str):
