@@ -55,6 +55,12 @@ class Reports2Dashboard(QWidget):
         self.delete_btn.clicked.connect(self._delete_sale)
         controls.addWidget(self.delete_btn)
 
+        # Generate report (full refresh)
+        self.generate_btn = QPushButton("إنشاء التقرير")
+        self.generate_btn.setFont(self.body_font)
+        self.generate_btn.clicked.connect(self._generate_report)
+        controls.addWidget(self.generate_btn)
+
         layout.addLayout(controls)
 
         self.table = QTableWidget(0, 6)
@@ -121,6 +127,17 @@ class Reports2Dashboard(QWidget):
 
         self.table.resizeColumnsToContents()
         self.summary_label.setText(f"إجمالي الفواتير المعروضة: {format_amount(total_net)} ج.م")
+
+    def _generate_report(self):
+        # Full reload to reflect latest system changes
+        try:
+            self.load_sales()
+            try:
+                self.changes_made.emit()
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def _get_selected_sale_id(self) -> int:
         row = self.table.currentRow()
