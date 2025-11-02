@@ -63,6 +63,34 @@ class Reports2Dashboard(QWidget):
 
         layout.addLayout(controls)
 
+        # Minimal period filters (Daily/Monthly) in a small row
+        period_row = QHBoxLayout()
+        period_row.addWidget(QLabel("اليوم"))
+        self.day_input = QSpinBox()
+        self.day_input.setRange(1, 31)
+        self.day_input.setValue(datetime.now().day)
+        period_row.addWidget(self.day_input)
+
+        period_row.addWidget(QLabel("الشهر"))
+        self.month_input = QSpinBox()
+        self.month_input.setRange(1, 12)
+        self.month_input.setValue(datetime.now().month)
+        period_row.addWidget(self.month_input)
+
+        self.daily_radio = QRadioButton("تقرير يومي")
+        self.monthly_radio = QRadioButton("تقرير شهري")
+        self.daily_radio.setChecked(True)
+        period_row.addWidget(self.daily_radio)
+        period_row.addWidget(self.monthly_radio)
+
+        # React to changes by reloading the main table only
+        self.day_input.valueChanged.connect(self.load_sales)
+        self.month_input.valueChanged.connect(self.load_sales)
+        self.daily_radio.toggled.connect(self.load_sales)
+        self.monthly_radio.toggled.connect(self.load_sales)
+
+        layout.addLayout(period_row)
+
         # Main list (Sales & Inventory only - products)
         self.table = QTableWidget(0, 6)
         self.table.setFont(self.body_font)
@@ -75,52 +103,7 @@ class Reports2Dashboard(QWidget):
         self.summary_label.setFont(self.body_font)
         layout.addWidget(self.summary_label, alignment=Qt.AlignRight)
 
-        # Period Reports (Daily / Monthly) section
-        section_title = QLabel("تقارير الفترة (يومي / شهري)")
-        section_title.setFont(self.header_font)
-        layout.addWidget(section_title)
-
-        period_controls = QHBoxLayout()
-        period_controls.addWidget(QLabel("اليوم"))
-        self.day_input = QSpinBox()
-        self.day_input.setRange(1, 31)
-        self.day_input.setValue(datetime.now().day)
-        period_controls.addWidget(self.day_input)
-
-        period_controls.addWidget(QLabel("الشهر"))
-        self.month_input = QSpinBox()
-        self.month_input.setRange(1, 12)
-        self.month_input.setValue(datetime.now().month)
-        period_controls.addWidget(self.month_input)
-
-        self.daily_radio = QRadioButton("تقرير يومي")
-        self.monthly_radio = QRadioButton("تقرير شهري")
-        self.daily_radio.setChecked(True)
-        period_controls.addWidget(self.daily_radio)
-        period_controls.addWidget(self.monthly_radio)
-
-        layout.addLayout(period_controls)
-
-        # Period table and summary
-        self.period_table = QTableWidget(0, 3)
-        self.period_table.setFont(self.body_font)
-        self.period_table.setHorizontalHeaderLabels(["الوصف", "الوقت", "القيمة (ج.م)"])
-        self.period_table.horizontalHeader().setStretchLastSection(True)
-        self.period_table.verticalHeader().setVisible(False)
-        layout.addWidget(self.period_table)
-
-        self.period_summary = QLabel("المجموع: 0 ج.م | إجمالي المبيعات الشهرية: 0 ج.م | إجمالي المصاريف الشهرية: 0 ج.م | الصافي: 0 ج.م")
-        self.period_summary.setFont(self.body_font)
-        layout.addWidget(self.period_summary, alignment=Qt.AlignRight)
-
-        # Connect changes
-        self.day_input.valueChanged.connect(self._refresh_period_report)
-        self.month_input.valueChanged.connect(self._refresh_period_report)
-        self.daily_radio.toggled.connect(self._refresh_period_report)
-        self.monthly_radio.toggled.connect(self._refresh_period_report)
-
         self.load_sales()
-        self._refresh_period_report()
 
     def load_sales(self):
         rows = self.db.list_all_sales()
@@ -132,6 +115,18 @@ class Reports2Dashboard(QWidget):
             if (s.get("type") or "") != "product":
                 continue
             bt = s.get("buyer_type") or "customer"
+            # Period filtering
+            year = datetime.now().year
+            month = int(self.month_input.value()) if hasattr(self, "month_input") else datetime.now().month
+            day = int(self.day_input.value()) if hasattr(self, "day_input") else datetime.now().day
+            date_str = f"{year}-{month:02d}-{day:02d}"
+            if self.daily_radio.isChecked():
+                if (s.get("date") or "")[:10] != date_str:
+                    continue
+            else:
+                if (s.get("date") or "")[5:7] != f"{month:02d}" or (s.get("date") or "")[:4] != str(year):
+                    continue
+
             if sel == "الكل":
                 filtered.append(s)
             elif sel == "المحل" and bt == "shop":
@@ -172,61 +167,33 @@ class Reports2Dashboard(QWidget):
             self.table.setItem(i, 5, QTableWidgetItem(format_amount(net)))
 
         self.table.resizeColumnsToContents()
-        self.summary_label.setText(f"إجمالي الفواتير المعروضة: {format_amount(total_net)} ج.م")
+
+        # Minimal summary following main reports style
+        if self.daily_radio.isChecked():
+            self.summary_label.setText(f"إجمالي الفواتير: {format_amount(total_net)} ج.م")
+        else:
+            # Monthly: show sales net, expenses total, net balance
+            year = datetime.now().year
+            month = int(self.month_input.value()) if hasattr(self, "month_input") else datetime.now().month
+            sales_net = self.db.sum_products_net_in_month(year, month)
+            expenses_total = self.db.sum_expenses_in_month(year, month)
+            net_balance = sales_net - expenses_total
+            self.summary_label.setText(
+                f"إجمالي المبيعات: {format_amount(sales_net)} ج.م | "
+                f"إجمالي المصاريف: {format_amount(expenses_total)} ج.م | "
+                f"الصافي: {format_amount(net_balance)} ج.م"
+            )
 
     def _generate_report(self):
         # Full reload to reflect latest system changes
         try:
             self.load_sales()
-            self._refresh_period_report()
             try:
                 self.changes_made.emit()
             except Exception:
                 pass
         except Exception:
             pass
-
-    def _refresh_period_report(self):
-        """Refresh the daily/monthly report section."""
-        self.period_table.setRowCount(0)
-        # Determine selected month/day
-        year = datetime.now().year
-        month = int(self.month_input.value())
-        day = int(self.day_input.value())
-        date_str = f"{year}-{month:02d}-{day:02d}"
-
-        if self.daily_radio.isChecked():
-            # Daily: show all product invoices on that day (customer and shop)
-            rows = self.db.list_all_sales()
-            total_net = 0.0
-            for s in rows:
-                if (s.get("type") or "") != "product":
-                    continue
-                if (s.get("date") or "")[:10] != date_str:
-                    continue
-                i = self.period_table.rowCount()
-                self.period_table.insertRow(i)
-                desc = "فاتورة مبيعات (عميل)" if s.get("buyer_type") == "customer" else "فاتورة مبيعات (للمحل)"
-                self.period_table.setItem(i, 0, QTableWidgetItem(desc))
-                self.period_table.setItem(i, 1, QTableWidgetItem(format_time_ar_str(s["date"])))
-                net = float(s["total"]) * (1 - (int(s.get("discount_percent") or 0) / 100.0))
-                if net < 0: net = 0.0
-                total_net += net
-                self.period_table.setItem(i, 2, QTableWidgetItem(format_amount(net)))
-            self.period_table.resizeColumnsToContents()
-            self.period_summary.setText(f"المجموع: {format_amount(total_net)} ج.م")
-        else:
-            # Monthly: totals for products net, expenses total, net balance
-            sales_net = self.db.sum_products_net_in_month(year, month)
-            expenses_total = self.db.sum_expenses_in_month(year, month)
-            net_balance = sales_net - expenses_total
-            self.period_summary.setText(
-                f"إجمالي المبيعات الشهرية: {format_amount(sales_net)} ج.م | "
-                f"إجمالي المصاريف الشهرية: {format_amount(expenses_total)} ج.م | "
-                f"الصافي: {format_amount(net_balance)} ج.م"
-            )
-            # Clear table for monthly summary
-            self.period_table.setRowCount(0)
 
     def _get_selected_sale_id(self) -> int:
         row = self.table.currentRow()
