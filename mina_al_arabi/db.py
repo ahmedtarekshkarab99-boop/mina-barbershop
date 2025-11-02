@@ -749,7 +749,7 @@ class Database:
             conn.commit()
 
     def update_sale_buyer_type(self, sale_id: int, buyer_type: str, employee_id: Optional[int] = None, customer_name: Optional[str] = None):
-        """Update buyer_type and related fields for a sale."""
+        """Update buyer_type and related fields for a sale, and sync expenses when changing to 'shop'."""
         buyer_type = (buyer_type or "customer").strip().lower()
         if buyer_type not in {"customer", "shop", "employee"}:
             buyer_type = "customer"
@@ -759,7 +759,27 @@ class Database:
             if buyer_type == "customer":
                 c.execute("UPDATE sales SET buyer_type = ?, employee_id = NULL, customer_name = ? WHERE id = ?", (buyer_type, customer_name or "غير محدد", sale_id))
             elif buyer_type == "shop":
+                # Set sale to shop
                 c.execute("UPDATE sales SET buyer_type = ?, employee_id = NULL, customer_name = 'المحل' WHERE id = ?", (buyer_type, sale_id))
+                # Sync expenses: add entries for each sale item as 'مشتريات للمحل'
+                # Fetch sale date and shift_id
+                c.execute("SELECT date, shift_id FROM sales WHERE id = ?", (sale_id,))
+                row = c.fetchone()
+                sale_date = row[0] if row else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                shift_id = row[1] if (row and row[1] is not None) else None
+                # Fetch sale items
+                c.execute("SELECT item_name, unit_price, quantity FROM sale_items WHERE sale_id = ?", (sale_id,))
+                items = c.fetchall()
+                for item_name, unit_price, quantity in items:
+                    amount = float(unit_price or 0.0) * int(quantity or 0)
+                    note = f"{item_name} (فاتورة {sale_id})"
+                    # Use add_expense helper to normalize date to shift start day
+                    # We call directly via SQL to keep the same connection
+                    exp_date = self._normalize_date_for_shift(sale_date, shift_id)
+                    c.execute("""
+                    INSERT INTO expenses(date, category, amount, note, shift_id)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, (exp_date, "مشتريات للمحل", amount, note, shift_id))
             else:  # employee
                 c.execute("UPDATE sales SET buyer_type = ?, employee_id = ?, customer_name = NULL WHERE id = ?", (buyer_type, employee_id, sale_id))
             conn.commit()
