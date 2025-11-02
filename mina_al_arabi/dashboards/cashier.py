@@ -411,7 +411,13 @@ class CashierDashboard(QWidget):
                 except Exception as e2:
                     QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{html_path}")
 
+        # Reset for next invoice
         self.invoice_list.clear()
         self.customer_input.clear()
         self.material_deduction_input.setValue(0)
+        # Reset discount to 0% (بدون خصم)
+        try:
+            self.discount_combo.setCurrentIndex(0)
+        except Exception:
+            pass
         self._update_total()
