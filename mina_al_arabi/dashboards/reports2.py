@@ -72,10 +72,13 @@ class Reports2Dashboard(QWidget):
 
     def load_sales(self):
         rows = self.db.list_all_sales()
-        # Apply filter
+        # Apply filter – restrict to Sales/Inventory data only (products)
         sel = self.type_filter.currentText()
         filtered = []
         for s in rows:
+            # Skip cashier/service invoices entirely
+            if (s.get("type") or "") != "product":
+                continue
             bt = s.get("buyer_type") or "customer"
             if sel == "الكل":
                 filtered.append(s)
@@ -95,15 +98,14 @@ class Reports2Dashboard(QWidget):
             self.table.setItem(i, 0, id_item)
             # date
             self.table.setItem(i, 1, QTableWidgetItem(format_time_ar_str(s["date"])))
-            # item type
-            self.table.setItem(i, 2, QTableWidgetItem("خدمة" if s["type"] == "service" else "منتج"))
+            # item type (always product for Reports 2)
+            self.table.setItem(i, 2, QTableWidgetItem("منتج"))
             # buyer type
             bt_disp = {"customer": "عميل", "shop": "المحل"}.get(s.get("buyer_type"), "عميل")
             self.table.setItem(i, 3, QTableWidgetItem(bt_disp))
             # person (client name for customer; empty for shop) with phone if available
             person = s.get("customer_name") or ""
             try:
-                from mina_al_arabi.db import Database  # already imported
                 phone = self.db.get_client_phone(person) or ""
                 if person and phone:
                     person = f"{person} — {phone}"
