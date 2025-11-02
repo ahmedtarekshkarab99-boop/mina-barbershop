@@ -820,6 +820,27 @@ class Database:
                 "discount_percent": int(r[7] or 0),
             } for r in rows]
 
+    def list_sales_by_customer_like(self, query: str) -> List[Dict[str, Any]]:
+        """Return sales for buyer_type='customer' filtered by customer_name LIKE %query%."""
+        q = f"%{(query or '').strip()}%"
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT id, date, type, customer_name, total, discount_percent
+            FROM sales
+            WHERE buyer_type = 'customer' AND customer_name LIKE ?
+            ORDER BY date DESC, id DESC
+            """, (q,))
+            rows = c.fetchall()
+            return [{
+                "id": r[0],
+                "date": r[1],
+                "type": r[2],
+                "customer_name": r[3],
+                "total": float(r[4] or 0.0),
+                "discount_percent": int(r[5] or 0),
+            } for r in rows]
+
     # Admin report helpers
     def sum_services_in_month(self, year: int, month: int) -> float:
         """Gross services total (before discount)."""

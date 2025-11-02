@@ -127,6 +127,12 @@ def main():
         return Reports2Dashboard(db)
     reports2_tab = add_tab_or_placeholder(_reports2_factory, "التقارير 2")
 
+    # Clients
+    def _clients_factory():
+        from mina_al_arabi.dashboards.clients import ClientsDashboard
+        return ClientsDashboard(db)
+    clients_tab = add_tab_or_placeholder(_clients_factory, "العملاء")
+
     # Link Reports2 changes to Admin report refresh
     try:
         if reports2_tab and admin_tab:
