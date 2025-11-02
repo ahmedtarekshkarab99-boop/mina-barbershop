@@ -41,7 +41,7 @@ class Reports2Dashboard(QWidget):
         controls = QHBoxLayout()
         controls.addWidget(QLabel("فلتر النوع"))
         self.type_filter = QComboBox()
-        self.type_filter.addItems(["الكل", "المحل", "العملاء", "الموظفون"])
+        self.type_filter.addItems(["الكل", "المحل", "العملاء"])
         self.type_filter.currentIndexChanged.connect(self.load_sales)
         controls.addWidget(self.type_filter)
 
@@ -59,7 +59,7 @@ class Reports2Dashboard(QWidget):
 
         self.table = QTableWidget(0, 6)
         self.table.setFont(self.body_font)
-        self.table.setHorizontalHeaderLabels(["المعرف", "التاريخ", "نوع العنصر", "نوع الفاتورة", "العميل/الموظف", "القيمة (صافي)"])
+        self.table.setHorizontalHeaderLabels(["المعرف", "التاريخ", "نوع العنصر", "نوع الفاتورة", "العميل", "القيمة (صافي)"])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.verticalHeader().setVisible(False)
         layout.addWidget(self.table)
@@ -83,8 +83,6 @@ class Reports2Dashboard(QWidget):
                 filtered.append(s)
             elif sel == "العملاء" and bt == "customer":
                 filtered.append(s)
-            elif sel == "الموظفون" and bt == "employee":
-                filtered.append(s)
 
         self.table.setRowCount(0)
         total_net = 0.0
@@ -100,20 +98,10 @@ class Reports2Dashboard(QWidget):
             # item type
             self.table.setItem(i, 2, QTableWidgetItem("خدمة" if s["type"] == "service" else "منتج"))
             # buyer type
-            bt_disp = {"customer": "عميل", "shop": "المحل", "employee": "موظف"}.get(s.get("buyer_type"), "عميل")
+            bt_disp = {"customer": "عميل", "shop": "المحل"}.get(s.get("buyer_type"), "عميل")
             self.table.setItem(i, 3, QTableWidgetItem(bt_disp))
-            # person
+            # person (client name for customer; empty for shop)
             person = s.get("customer_name") or ""
-            if s.get("buyer_type") == "employee":
-                # resolve employee name if needed
-                try:
-                    # quick lookup; list_employees returns tuples
-                    for eid, name in self.db.list_employees():
-                        if eid == s.get("employee_id"):
-                            person = name
-                            break
-                except Exception:
-                    pass
             self.table.setItem(i, 4, QTableWidgetItem(person))
             # net value after visible discount
             net = float(s["total"]) * (1 - (int(s.get("discount_percent") or 0) / 100.0))
@@ -141,7 +129,7 @@ class Reports2Dashboard(QWidget):
             QMessageBox.warning(self, "تنبيه", "اختر فاتورة من الجدول أولاً.")
             return
         # Choose new type
-        new_type, ok = QInputDialog.getItem(self, "تغيير نوع الفاتورة", "اختر النوع:", ["عميل", "المحل", "موظف"], 0, False)
+        new_type, ok = QInputDialog.getItem(self, "تغيير نوع الفاتورة", "اختر النوع:", ["عميل", "المحل"], 0, False)
         if not ok:
             return
         # Map to internal buyer_type
@@ -159,29 +147,6 @@ class Reports2Dashboard(QWidget):
             try:
                 self.db.update_sale_buyer_type(sale_id, "shop")
                 QMessageBox.information(self, "تم", "تم تغيير نوع الفاتورة إلى المحل.")
-            except Exception as e:
-                QMessageBox.critical(self, "خطأ", f"تعذر التغيير:\n{e}")
-        else:  # موظف
-            # Choose employee
-            employees = list(self.db.list_employees())
-            if not employees:
-                QMessageBox.warning(self, "تنبيه", "لا يوجد موظفون.")
-                return
-            names = [nm for _, nm in employees]
-            name, ok3 = QInputDialog.getItem(self, "اختر الموظف", "الموظف:", names, 0, False)
-            if not ok3:
-                return
-            emp_id = None
-            for eid, nm in employees:
-                if nm == name:
-                    emp_id = eid
-                    break
-            if emp_id is None:
-                QMessageBox.warning(self, "تنبيه", "تعذر تحديد الموظف.")
-                return
-            try:
-                self.db.update_sale_buyer_type(sale_id, "employee", employee_id=emp_id)
-                QMessageBox.information(self, "تم", "تم تغيير نوع الفاتورة إلى موظف.")
             except Exception as e:
                 QMessageBox.critical(self, "خطأ", f"تعذر التغيير:\n{e}")
 
