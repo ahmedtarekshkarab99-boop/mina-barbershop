@@ -748,6 +748,43 @@ class Database:
             c.execute("DELETE FROM sales WHERE id = ?", (sale_id,))
             conn.commit()
 
+    def update_sale_buyer_type(self, sale_id: int, buyer_type: str, employee_id: Optional[int] = None, customer_name: Optional[str] = None):
+        """Update buyer_type and related fields for a sale."""
+        buyer_type = (buyer_type or "customer").strip().lower()
+        if buyer_type not in {"customer", "shop", "employee"}:
+            buyer_type = "customer"
+        with self.connect() as conn:
+            c = conn.cursor()
+            # Normalize fields per type
+            if buyer_type == "customer":
+                c.execute("UPDATE sales SET buyer_type = ?, employee_id = NULL, customer_name = ? WHERE id = ?", (buyer_type, customer_name or "غير محدد", sale_id))
+            elif buyer_type == "shop":
+                c.execute("UPDATE sales SET buyer_type = ?, employee_id = NULL, customer_name = 'المحل' WHERE id = ?", (buyer_type, sale_id))
+            else:  # employee
+                c.execute("UPDATE sales SET buyer_type = ?, employee_id = ?, customer_name = NULL WHERE id = ?", (buyer_type, employee_id, sale_id))
+            conn.commit()
+
+    def list_all_sales(self) -> List[Dict[str, Any]]:
+        """Return all sales with key fields (for management screens)."""
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT id, date, type, buyer_type, employee_id, customer_name, total, discount_percent
+            FROM sales
+            ORDER BY date DESC, id DESC
+            """)
+            rows = c.fetchall()
+            return [{
+                "id": r[0],
+                "date": r[1],
+                "type": r[2],
+                "buyer_type": r[3],
+                "employee_id": r[4],
+                "customer_name": r[5],
+                "total": float(r[6] or 0.0),
+                "discount_percent": int(r[7] or 0),
+            } for r in rows]
+
     # Admin report helpers
     def sum_services_in_month(self, year: int, month: int) -> float:
         """Gross services total (before discount)."""

@@ -121,6 +121,19 @@ def main():
         return ReportsDashboard(db)
     reports_tab = add_tab_or_placeholder(_reports_factory, "التقارير")
 
+    # Reports 2
+    def _reports2_factory():
+        from mina_al_arabi.dashboards.reports2 import Reports2Dashboard
+        return Reports2Dashboard(db)
+    reports2_tab = add_tab_or_placeholder(_reports2_factory, "التقارير 2")
+
+    # Link Reports2 changes to Admin report refresh
+    try:
+        if reports2_tab and admin_tab:
+            reports2_tab.changes_made.connect(admin_tab.refresh)
+    except Exception:
+        pass
+
     # Suppliers
     def _suppliers_factory():
         from mina_al_arabi.dashboards.suppliers import SuppliersDashboard
