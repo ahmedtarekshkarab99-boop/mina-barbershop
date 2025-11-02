@@ -105,6 +105,14 @@ class Database:
                 notes TEXT
             )
             """)
+            # Clients (name unique, optional phone)
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                phone TEXT
+            )
+            """)
             c.execute("""
             CREATE TABLE IF NOT EXISTS supplier_invoices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -979,3 +987,25 @@ class Database:
             s = self.supplier_summary(sid)
             total_remaining += float(s.get("remaining", 0.0) or 0.0)
         return total_remaining
+
+    # Clients helpers
+    def get_client_phone(self, name: str) -> Optional[str]:
+        with self.connect() as conn:
+            c = conn.cursor()
+            c.execute("SELECT phone FROM clients WHERE name = ?", (name.strip(),))
+            row = c.fetchone()
+            return row[0] if row and row[0] else None
+
+    def set_client_phone(self, name: str, phone: Optional[str]) -> None:
+        """Create or update client record phone."""
+        nm = (name or "").strip()
+        if not nm:
+            return
+        ph = (phone or "").strip()
+        with self.connect() as conn:
+            c = conn.cursor()
+            # ensure record exists
+            c.execute("INSERT OR IGNORE INTO clients(name, phone) VALUES (?, NULL)", (nm,))
+            # update phone
+            c.execute("UPDATE clients SET phone = ? WHERE name = ?", (ph or None, nm))
+            conn.commit()

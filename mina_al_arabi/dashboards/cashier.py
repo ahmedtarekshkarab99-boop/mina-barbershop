@@ -3,7 +3,8 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QSpinBox, QLineEdit, QMessageBox, QScrollArea, QGridLayout
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QTextDocument
+from PySide6.QtPrintSupport import QPrinter
 from datetime import datetime
 import os
 
@@ -233,41 +234,190 @@ class CashierDashboard(QWidget):
         except Exception:
             pass
 
-        # Build customer-facing receipt (hide material deduction)
+        # Build elegant HTML receipt (hide material deduction)
         ts = datetime.now()
-        lines = []
-        lines.append("صالون مينا العربي")
-        lines.append(f"التاريخ: {ts.strftime('%Y-%m-%d %I:%M %p')}")
-        lines.append(f"المشتري: {customer_name}")
-        lines.append(f"الموظف: {employee_name}")
-        lines.append("-" * 30)
-        for name, price, qty in items:
-            lines.append(f"{name} x{qty} - {format_amount(price)} ج.م")
-        lines.append("-" * 30)
-        lines.append(f"الإجمالي قبل الخصم: {format_amount(total)} ج.م")
-        lines.append(f"الخصم: {discount_percent}%")
-        lines.append(f"الإجمالي بعد الخصم: {format_amount(total_after)} ج.م")
-        text = "\n".join(lines)
+        date_str = ts.strftime('%Y-%m-%d %I:%M %p')
+        subtotal_str = format_amount(total)
+        discount_str = f"{discount_percent}%"
+        final_total_str = format_amount(total_after)
 
-        path = os.path.join(receipts_dir(), f"receipt_service_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
-        # Write receipt and verify existence
+        rows_html = ""
+        for name, price, qty in items:
+            rows_html += f"""
+            <tr>
+                <td class="cell-left">{name}</td>
+                <td class="cell-center">{qty}</td>
+                <td class="cell-center">{format_amount(price)}</td>
+                <td class="cell-right">{format_amount(price * qty)}</td>
+            </tr>
+            """
+
+        html = f"""
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="utf-8" />
+            <style>
+                body {{
+                    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+                    color: #111;
+                    margin: 20px;
+                }}
+                .container {{
+                    max-width: 720px;
+                    margin: 0 auto;
+                    border: 1px solid #D4AF37;
+                    padding: 18px 22px;
+                    background: #fff;
+                }}
+                .brand {{
+                    text-align: center;
+                    margin-bottom: 8px;
+                }}
+                .brand h1 {{
+                    margin: 0;
+                    font-size: 20px;
+                    color: #000;
+                    letter-spacing: 0.5px;
+                }}
+                .brand h2 {{
+                    margin: 4px 0 0 0;
+                    font-size: 12px;
+                    font-weight: 500;
+                    color: #555;
+                }}
+                .meta {{
+                    font-size: 13px;
+                    margin: 8px 0 14px 0;
+                    padding-bottom: 10px;
+                    border-bottom: 1px dashed #B8962D;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px;
+                    margin-bottom: 10px;
+                }}
+                thead th {{
+                    background: #f7f4ee;
+                    color: #111;
+                    font-weight: 700;
+                    border-bottom: 1px solid #D4AF37;
+                    padding: 8px;
+                }}
+                td {{
+                    padding: 8px;
+                    border-bottom: 1px solid #eee;
+                }}
+                .cell-left {{ text-align: right; }}
+                .cell-center {{ text-align: center; }}
+                .cell-right {{ text-align: left; }}
+                .totals {{
+                    margin-top: 8px;
+                    padding-top: 8px;
+                    border-top: 1px dashed #B8962D;
+                    font-size: 14px;
+                }}
+                .totals .line {{ display: flex; justify-content: space-between; margin: 4px 0; }}
+                .totals .final {{ font-weight: 700; color: #000; }}
+                .signature-area {{
+                    margin-top: 18px;
+                    text-align: center;
+                }}
+                .signature-line {{
+                    margin: 10px 0;
+                    font-size: 16px;
+                    font-weight: 600;
+                }}
+                .owner {{
+                    text-align: left;
+                    font-family: 'Segoe Script', 'Lucida Handwriting', cursive;
+                    font-size: 14px;
+                    color: #333;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="brand">
+                    <h1>صالون مينا العربي</h1>
+                    <h2>Salon Mina Al Arabi – Beauty &amp; Elegance</h2>
+                </div>
+                <div class="meta">
+                    التاريخ: {date_str} &nbsp;&nbsp; • &nbsp;&nbsp; المشتري: {customer_name} &nbsp;&nbsp; • &nbsp;&nbsp; الموظف: {employee_name}
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="cell-left">الخدمة</th>
+                            <th class="cell-center">الكمية</th>
+                            <th class="cell-center">سعر الوحدة</th>
+                            <th class="cell-right">الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows_html}
+                    </tbody>
+                </table>
+                <div class="totals">
+                    <div class="line"><span>الإجمالي قبل الخصم</span><span>{subtotal_str} ج.م</span></div>
+                    <div class="line"><span>الخصم</span><span>{discount_str}</span></div>
+                    <div class="line final"><span>الإجمالي بعد الخصم</span><span>{final_total_str} ج.م</span></div>
+                </div>
+                <div class="signature-area">
+                    <div class="signature-line">صالون مينا العربي اختيارك الافضل والاول</div>
+                    <div class="owner">Y. Abotaleb</div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        # Save both HTML and plain text copies
+        base_dir = receipts_dir()
+        html_path = os.path.join(base_dir, f"receipt_service_{ts.strftime('%Y%m%d_%H%M%S')}.html")
+        txt_path = os.path.join(base_dir, f"receipt_service_{ts.strftime('%Y%m%d_%H%M%S')}.txt")
+
         write_ok = False
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(text)
-                f.flush()
-            write_ok = os.path.isfile(path)
+            with open(html_path, "w", encoding="utf-8") as fh:
+                fh.write(html)
+                fh.flush()
+            # also write text (basic archive)
+            text_archive = f"صالون مينا العربي\nالتاريخ: {date_str}\nالمشتري: {customer_name}\n" + \
+                           "\n".join([f"{n} x{q} - {format_amount(p)} ج.م" for (n, p, q) in items]) + \
+                           f"\nالإجمالي قبل الخصم: {subtotal_str} ج.م\nالخصم: {discount_str}\nالإجمالي بعد الخصم: {final_total_str} ج.م\n"
+            with open(txt_path, "w", encoding="utf-8") as ft:
+                ft.write(text_archive)
+                ft.flush()
+            write_ok = os.path.isfile(html_path)
         except Exception as e:
-            QMessageBox.critical(self, "خطأ", f"تعذر حفظ الإيصال:\n{e}\n{path}")
+            QMessageBox.critical(self, "خطأ", f"تعذر حفظ الإيصال:\n{e}\n{html_path}")
 
+        # Print HTML with large, elegant formatting
         if write_ok:
             try:
-                print_receipt(text)
-                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{path}")
+                printer = QPrinter()
+                printer.setResolution(300)
+                doc = QTextDocument()
+                doc.setDefaultFont(QFont("Cairo", 14))
+                doc.setHtml(html)
+                doc.print_(printer)
+                QMessageBox.information(self, "تم", f"تم حفظ وطباعة الإيصال.\n{html_path}")
             except Exception as e:
-                QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{path}")
+                # Fallback to raw text print
+                try:
+                    print_receipt(text_archive)
+                    QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال بنسخة HTML لكن فشلت طباعة HTML، تم الطباعة نصياً:\n{e}\n{html_path}")
+                except Exception as e2:
+                    QMessageBox.warning(self, "تنبيه", f"تم حفظ الإيصال لكن فشلت الطباعة:\n{e}\n{html_path}")
 
+        # Reset for next invoice
         self.invoice_list.clear()
         self.customer_input.clear()
         self.material_deduction_input.setValue(0)
+        # Reset discount to 0% (بدون خصم)
+        try:
+            self.discount_combo.setCurrentIndex(0)
+        except Exception:
+            pass
         self._update_total()

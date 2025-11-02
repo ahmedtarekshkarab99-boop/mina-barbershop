@@ -100,8 +100,15 @@ class Reports2Dashboard(QWidget):
             # buyer type
             bt_disp = {"customer": "عميل", "shop": "المحل"}.get(s.get("buyer_type"), "عميل")
             self.table.setItem(i, 3, QTableWidgetItem(bt_disp))
-            # person (client name for customer; empty for shop)
+            # person (client name for customer; empty for shop) with phone if available
             person = s.get("customer_name") or ""
+            try:
+                from mina_al_arabi.db import Database  # already imported
+                phone = self.db.get_client_phone(person) or ""
+                if person and phone:
+                    person = f"{person} — {phone}"
+            except Exception:
+                pass
             self.table.setItem(i, 4, QTableWidgetItem(person))
             # net value after visible discount
             net = float(s["total"]) * (1 - (int(s.get("discount_percent") or 0) / 100.0))
