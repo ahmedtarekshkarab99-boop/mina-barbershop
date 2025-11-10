@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QTableWidget, QTableWidgetItem,
-    QPushButton, QMessageBox
+    QPushButton, QMessageBox, QRadioButton
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
@@ -37,11 +37,19 @@ class AdminReportDashboard(QWidget):
 
         # Controls (month/year)
         controls = QHBoxLayout()
-        title = QLabel("التقرير الإداري الشهري")
+        title = QLabel("التقرير الإداري")
         title.setFont(self.header_font)
         controls.addWidget(title)
 
         controls.addStretch()
+
+        # Period selectors
+        controls.addWidget(QLabel("اليوم"))
+        self.day_input = QSpinBox()
+        self.day_input.setRange(1, 31)
+        self.day_input.setValue(datetime.now().day)
+        self.day_input.setFont(self.body_font)
+        controls.addWidget(self.day_input)
 
         controls.addWidget(QLabel("الشهر"))
         self.month_input = QSpinBox()
@@ -56,6 +64,12 @@ class AdminReportDashboard(QWidget):
         self.year_input.setValue(datetime.now().year)
         self.year_input.setFont(self.body_font)
         controls.addWidget(self.year_input)
+
+        self.daily_radio = QRadioButton("تقرير يومي")
+        self.monthly_radio = QRadioButton("تقرير شهري")
+        self.monthly_radio.setChecked(True)
+        controls.addWidget(self.daily_radio)
+        controls.addWidget(self.monthly_radio)
 
         refresh_btn = QPushButton("تحديث")
         refresh_btn.setFont(self.body_font)
@@ -113,73 +127,144 @@ class AdminReportDashboard(QWidget):
     def refresh(self):
         year = int(self.year_input.value())
         month = int(self.month_input.value())
+        day = int(self.day_input.value())
+        date_str = f"{year}-{month:02d}-{day:02d}"
 
-        # Revenue totals (net-after-discount only)
-        net_services = self.db.sum_services_net_in_month(year, month)
-        net_sales = self.db.sum_products_net_in_month(year, month)
-        total_revenue = net_services + net_sales
-        self.rev_totals_label.setText(
-            f"إجمالي الخدمات (صافي): {format_amount(net_services)} ج.م | "
-            f"إجمالي المبيعات (صافي): {format_amount(net_sales)} ج.م | "
-            f"إجمالي الإيرادات (الصافي): {format_amount(total_revenue)} ج.م"
-        )
-
-        # Per-employee services totals (effective after discounts/material deductions)
-        self.emp_table.setRowCount(0)
-        for eid, name in self.db.list_employees():
-            sales = self.db.list_sales_by_employee_in_month(eid, year, month)
-            emp_total = 0.0
-            for s in sales:
+        if self.daily_radio.isChecked():
+            # Daily report
+            # Revenue totals (net-after-discount)
+            net_services = 0.0
+            net_sales = 0.0
+            for s in self.db.list_all_sales():
+                if (s.get("date") or "")[:10] != date_str:
+                    continue
+                disc = int(s.get("discount_percent") or 0)
+                net_val = float(s["total"]) * (1 - disc/100.0)
                 if s.get("type") == "service" and s.get("buyer_type") == "customer":
-                    disc = int(s.get("discount_percent") or 0)
-                    mat = float(s.get("material_deduction") or 0.0)
-                    eff = float(s["total"]) * (1 - disc/100.0) - mat
-                    if eff < 0:
-                        eff = 0.0
-                    emp_total += eff
-            if emp_total > 0:
-                r = self.emp_table.rowCount()
-                self.emp_table.insertRow(r)
-                self.emp_table.setItem(r, 0, QTableWidgetItem(name))
-                self.emp_table.setItem(r, 1, QTableWidgetItem(format_amount(emp_total)))
-        self.emp_table.resizeColumnsToContents()
+                    net_services += net_val
+                elif s.get("type") == "product":
+                    net_sales += net_val
+            total_revenue = net_services + net_sales
+            self.rev_totals_label.setText(
+                f"إجمالي الخدمات (صافي): {format_amount(net_services)} ج.م | "
+                f"إجمالي المبيعات (صافي): {format_amount(net_sales)} ج.م | "
+                f"إجمالي الإيرادات (الصافي): {format_amount(total_revenue)} ج.م"
+            )
 
-        # Expenses and costs (simplified totals only)
-        shop_exp = self.db.sum_expenses_category_in_month("مشتريات للمحل", year, month)
-        daily_exp = self.db.sum_expenses_category_in_month("يوميات العمالة", year, month)
-        supp_pay = self.db.sum_expenses_category_in_month("دفعات الموردين", year, month)
-        # General = all minus categorized above
-        rows = self.db.list_expenses()
-        from datetime import datetime as dtmod
-        gen_exp = 0.0
-        for rid, date, cat, amount, note in rows:
-            try:
-                d = dtmod.strptime(date, "%Y-%m-%d %H:%M:%S")
-                if d.year != year or d.month != month:
-                    continue
-            except Exception:
-                if not (str(date)[:4] == str(year) and str(date)[5:7] == f"{month:02d}"):
-                    continue
-            if cat not in {"مشتريات للمحل", "يوميات العمالة", "دفعات الموردين"}:
-                gen_exp += amount
+            # Per-employee services totals for the day (effective)
+            self.emp_table.setRowCount(0)
+            for eid, name in self.db.list_employees():
+                sales = self.db.list_sales_by_employee_on_date(eid, date_str)
+                emp_total = 0.0
+                for s in sales:
+                    if s.get("type") == "service" and s.get("buyer_type") == "customer":
+                        disc = int(s.get("discount_percent") or 0)
+                        mat = float(s.get("material_deduction") or 0.0)
+                        eff = float(s["total"]) * (1 - disc/100.0) - mat
+                        if eff < 0:
+                            eff = 0.0
+                        emp_total += eff
+                if emp_total > 0:
+                    r = self.emp_table.rowCount()
+                    self.emp_table.insertRow(r)
+                    self.emp_table.setItem(r, 0, QTableWidgetItem(name))
+                    self.emp_table.setItem(r, 1, QTableWidgetItem(format_amount(emp_total)))
+            self.emp_table.resizeColumnsToContents()
 
-        total_expenses = gen_exp + shop_exp + daily_exp + supp_pay
-        total_hidden_material = self.db.sum_material_deductions_in_month(year, month)
-        self.exp_totals_label.setText(
-            f"إجمالي المصاريف: {format_amount(total_expenses)} ج.م | "
-            f"مشتريات المحل: {format_amount(shop_exp)} ج.م | "
-            f"يوميات العمالة: {format_amount(daily_exp)} ج.م | "
-            f"دفعات الموردين: {format_amount(supp_pay)} ج.م | "
-            f"إجمالي خصومات المواد (مخفي): {format_amount(total_hidden_material)} ج.م"
-        )
+            # Expenses (sum of all categories for the day)
+            from datetime import datetime as dtmod
+            total_expenses = 0.0
+            for rid, date, cat, amount, note in self.db.list_expenses():
+                try:
+                    d = dtmod.strptime(date, "%Y-%m-%d %H:%M:%S")
+                    if d.year != year or d.month != month or d.day != day:
+                        continue
+                except Exception:
+                    if not ((str(date)[:4] == str(year)) and (str(date)[5:7] == f"{month:02d}") and (str(date)[8:10] == f"{day:02d}")):
+                        continue
+                total_expenses += float(amount or 0.0)
+            # Hidden material deductions on the day
+            total_hidden_material = self.db.sum_material_deductions_in_period(f"{date_str} 00:00:00", f"{date_str} 23:59:59")
+            self.exp_totals_label.setText(
+                f"إجمالي المصاريف: {format_amount(total_expenses)} ج.م | "
+                f"إجمالي خصومات المواد (مخفي): {format_amount(total_hidden_material)} ج.م"
+            )
 
-        # Financial summary (net-only)
-        net_profit = total_revenue - total_expenses
-        self.fin_totals_label.setText(
-            f"إجمالي الإيرادات (الصافي): {format_amount(total_revenue)} ج.م | "
-            f"إجمالي المصاريف: {format_amount(total_expenses)} ج.م | "
-            f"صافي الربح: {format_amount(net_profit)} ج.م"
-        )
+            net_profit = total_revenue - total_expenses
+            self.fin_totals_label.setText(
+                f"إجمالي الإيرادات (الصافي): {format_amount(total_revenue)} ج.م | "
+                f"إجمالي المصاريف: {format_amount(total_expenses)} ج.م | "
+                f"صافي الربح: {format_amount(net_profit)} ج.م"
+            )
+
+        else:
+            # Monthly report (existing logic)
+            # Revenue totals (net-after-discount only)
+            net_services = self.db.sum_services_net_in_month(year, month)
+            net_sales = self.db.sum_products_net_in_month(year, month)
+            total_revenue = net_services + net_sales
+            self.rev_totals_label.setText(
+                f"إجمالي الخدمات (صافي): {format_amount(net_services)} ج.م | "
+                f"إجمالي المبيعات (صافي): {format_amount(net_sales)} ج.م | "
+                f"إجمالي الإيرادات (الصافي): {format_amount(total_revenue)} ج.م"
+            )
+
+            # Per-employee services totals (effective after discounts/material deductions)
+            self.emp_table.setRowCount(0)
+            for eid, name in self.db.list_employees():
+                sales = self.db.list_sales_by_employee_in_month(eid, year, month)
+                emp_total = 0.0
+                for s in sales:
+                    if s.get("type") == "service" and s.get("buyer_type") == "customer":
+                        disc = int(s.get("discount_percent") or 0)
+                        mat = float(s.get("material_deduction") or 0.0)
+                        eff = float(s["total"]) * (1 - disc/100.0) - mat
+                        if eff < 0:
+                            eff = 0.0
+                        emp_total += eff
+                if emp_total > 0:
+                    r = self.emp_table.rowCount()
+                    self.emp_table.insertRow(r)
+                    self.emp_table.setItem(r, 0, QTableWidgetItem(name))
+                    self.emp_table.setItem(r, 1, QTableWidgetItem(format_amount(emp_total)))
+            self.emp_table.resizeColumnsToContents()
+
+            # Expenses and costs (simplified totals only)
+            shop_exp = self.db.sum_expenses_category_in_month("مشتريات للمحل", year, month)
+            daily_exp = self.db.sum_expenses_category_in_month("يوميات العمالة", year, month)
+            supp_pay = self.db.sum_expenses_category_in_month("دفعات الموردين", year, month)
+            # General = all minus categorized above
+            rows = self.db.list_expenses()
+            from datetime import datetime as dtmod
+            gen_exp = 0.0
+            for rid, date, cat, amount, note in rows:
+                try:
+                    d = dtmod.strptime(date, "%Y-%m-%d %H:%M:%S")
+                    if d.year != year or d.month != month:
+                        continue
+                except Exception:
+                    if not (str(date)[:4] == str(year) and str(date)[5:7] == f"{month:02d}"):
+                        continue
+                if cat not in {"مشتريات للمحل", "يوميات العمالة", "دفعات الموردين"}:
+                    gen_exp += amount
+
+            total_expenses = gen_exp + shop_exp + daily_exp + supp_pay
+            total_hidden_material = self.db.sum_material_deductions_in_month(year, month)
+            self.exp_totals_label.setText(
+                f"إجمالي المصاريف: {format_amount(total_expenses)} ج.م | "
+                f"مشتريات المحل: {format_amount(shop_exp)} ج.م | "
+                f"يوميات العمالة: {format_amount(daily_exp)} ج.م | "
+                f"دفعات الموردين: {format_amount(supp_pay)} ج.م | "
+                f"إجمالي خصومات المواد (مخفي): {format_amount(total_hidden_material)} ج.م"
+            )
+
+            # Financial summary (net-only)
+            net_profit = total_revenue - total_expenses
+            self.fin_totals_label.setText(
+                f"إجمالي الإيرادات (الصافي): {format_amount(total_revenue)} ج.م | "
+                f"إجمالي المصاريف: {format_amount(total_expenses)} ج.م | "
+                f"صافي الربح: {format_amount(net_profit)} ج.م"
+            )
 
         # Top dashboard summary: Net Profit, Inventory Value, Pending Supplier Balances
         inv_value = self.db.inventory_total_value()
